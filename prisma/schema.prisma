@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(CLIENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+}
+
+model ExamTemplate {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  isCustom    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  orders      Order[]
+  questions   Question[] 
+}
+
+model Question {
+  id             String       @id @default(uuid())
+  examTemplateId String
+  examTemplate   ExamTemplate @relation(fields: [examTemplateId], references: [id], onDelete: Cascade)
+  content        String       
+  options        String[]     
+  correctAnswer  Int          
+  createdAt      DateTime     @default(now())
+}
+
+model Order {
+  id                 String        @id @default(uuid())
+  clientId           String
+  client             User          @relation(fields: [clientId], references: [id])
+  examTemplateId     String?
+  examTemplate       ExamTemplate? @relation(fields: [examTemplateId], references: [id])
+  status             OrderStatus   @default(NEW)
+  invoiceUrl         String?       
+  trainingProgramUrl String?       
+  generatedTestUrl   String?       
+  scannedAnswersUrl  String?       
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  participants       Participant[]
+  documents          Document[]
+}
+
+enum OrderStatus {
+  NEW                  
+  CONFIRMED            
+  TEST_READY           
+  SCANS_UPLOADED       
+  COMPLETED            
+}
+
+model Participant {
+  id             String   @id @default(uuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id])
+  firstName      String
+  lastName       String
+  birthDate      String
+  birthPlace     String
+  certificateUrl String?  
+  score          Int?     
+  maxScore       Int?     
+  testFinished   Boolean  @default(false)
+  scannedTestUrl String?  // <-- NOWOŚĆ: Miejsce na skan kartki konkretnego kursanta
+  createdAt      DateTime @default(now())
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  fileName  String
+  fileUrl   String
+  fileType  String
+  createdAt DateTime @default(now())
+}
