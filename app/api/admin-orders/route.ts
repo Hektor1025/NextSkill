@@ -4,17 +4,19 @@ import { prisma } from "../../../lib/prisma";
 export async function GET() {
   try {
     const orders = await prisma.order.findMany({
-      // Dołączamy powiązane dane z innych tabel (email klienta i tytuł egzaminu)
       include: {
         client: {
-          select: { email: true }
+          select: { email: true, companyName: true } // Dodano companyName
         },
         examTemplate: {
           select: { title: true }
+        },
+        participants: {
+          select: { id: true } // NOWOŚĆ: Zaciągamy ID kursantów, by móc zliczyć ich długość (length)
         }
       },
       orderBy: {
-        createdAt: 'desc' // Najnowsze na samej górze
+        createdAt: 'desc'
       }
     });
 

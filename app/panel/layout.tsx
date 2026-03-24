@@ -81,6 +81,10 @@ export default function ClientPanelLayout({
         <div className="p-8 flex-1 overflow-auto">
           {children}
         </div>
+        {/* NOWOŚĆ: Stopka prawna */}
+        <footer className="p-4 text-center text-xs text-slate-400 border-t border-slate-200 mt-auto bg-white">
+          <Link href="/regulamin" className="hover:underline">Regulamin i UPPDO</Link> | <Link href="/polityka-prywatnosci" className="hover:underline">Polityka Prywatności</Link>
+        </footer>
       </main>
     </div>
   );

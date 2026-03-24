@@ -7,13 +7,24 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      Role     @default(CLIENT)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String
+  role          Role     @default(CLIENT)
+  
+  // Nowe pola dla Ośrodka Szkoleniowego (Organizacji)
+  companyName   String?
+  nip           String?
+  address       String?
+  contactPerson String?
+  phone         String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  orders        Order[]
+  termsAccepted    Boolean   @default(false)
+  termsAcceptedAt  DateTime?
+  marketingConsent Boolean   @default(false)
 }
 
 enum Role {
@@ -22,13 +33,18 @@ enum Role {
 }
 
 model ExamTemplate {
-  id          String     @id @default(uuid())
-  title       String
-  description String
-  isCustom    Boolean    @default(false)
-  createdAt   DateTime   @default(now())
-  orders      Order[]
-  questions   Question[] 
+  id               String     @id @default(uuid())
+  title            String
+  description      String
+  isCustom         Boolean    @default(false)
+  
+  // Nowe pola: Efekty uczenia się (do certyfikatu) oraz poziom trudności
+  learningOutcomes String?    @db.Text
+  level            String?
+  
+  createdAt        DateTime   @default(now())
+  orders           Order[]
+  questions        Question[] 
 }
 
 model Question {
@@ -48,7 +64,7 @@ model Order {
   examTemplateId     String?
   examTemplate       ExamTemplate? @relation(fields: [examTemplateId], references: [id])
   status             OrderStatus   @default(NEW)
-  invoiceUrl         String?       
+  invoiceUrl         String?
   trainingProgramUrl String?       
   generatedTestUrl   String?       
   scannedAnswersUrl  String?       
@@ -74,9 +90,9 @@ model Participant {
   lastName       String
   birthDate      String
   birthPlace     String
-  certificateUrl String?  
+  certificateUrl String?
   score          Int?     
-  maxScore       Int?     
+  maxScore       Int?
   testFinished   Boolean  @default(false)
   scannedTestUrl String?  // <-- NOWOŚĆ: Miejsce na skan kartki konkretnego kursanta
   createdAt      DateTime @default(now())

@@ -21,15 +21,27 @@ type ClientProfile = {
   id: string;
   email: string;
   createdAt: string;
+  companyName?: string;
+  nip?: string;
+  address?: string;
+  contactPerson?: string;
+  phone?: string;
   orders: Order[];
 };
 
 export default function ClientProfilePage() {
   const params = useParams();
   const clientId = params.id as string;
-  
+
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Stany do edycji
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    companyName: "", nip: "", address: "", contactPerson: "", phone: "", newPassword: ""
+  });
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (clientId) {
@@ -43,11 +55,55 @@ export default function ClientProfilePage() {
       if (res.ok) {
         const data = await res.json();
         setClient(data);
+        setFormData({
+          companyName: data.companyName || "",
+          nip: data.nip || "",
+          address: data.address || "",
+          contactPerson: data.contactPerson || "",
+          phone: data.phone || "",
+          newPassword: ""
+        });
       }
     } catch (error) {
       console.error("Błąd pobierania danych klienta:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: formData.companyName,
+          nip: formData.nip,
+          address: formData.address,
+          contactPerson: formData.contactPerson,
+          phone: formData.phone,
+          password: formData.newPassword
+        })
+      });
+      
+      if (res.ok) {
+        alert("Dane Ośrodka zostały zaktualizowane pomyślnie.");
+        setFormData({...formData, newPassword: ""}); // Czyścimy pole hasła
+        setIsEditing(false);
+        fetchClientDetails(); // Odśwież widok
+      } else {
+        alert("Wystąpił błąd podczas zapisywania.");
+      }
+    } catch(error) {
+      alert("Błąd połączenia z serwerem.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -70,7 +126,6 @@ export default function ClientProfilePage() {
     return <div className="p-12 text-center text-red-500 font-medium">Nie znaleziono klienta w bazie.</div>;
   }
 
-  // Obliczamy szybkie statystyki dla tego klienta
   const totalOrders = client.orders.length;
   const totalParticipants = client.orders.reduce((sum, order) => sum + order.participants.length, 0);
   const totalCertificates = client.orders.reduce((sum, order) => {
@@ -79,11 +134,14 @@ export default function ClientProfilePage() {
 
   return (
     <div className="max-w-5xl mx-auto pb-12">
-      <div className="mb-6">
+      <div className="mb-6 flex justify-between items-center">
         <Link href="/dashboard/clients" className="text-gray-500 hover:text-blue-600 font-medium flex items-center transition-colors">
           <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
           Wróć do listy klientów
         </Link>
+        <button onClick={() => setIsEditing(!isEditing)} className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold px-4 py-2 rounded-lg text-sm shadow-sm transition-colors">
+          {isEditing ? "Anuluj edycję" : "Zmień dane / Hasło"}
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
@@ -93,15 +151,12 @@ export default function ClientProfilePage() {
               {client.email.charAt(0).toUpperCase()}
             </div>
             <div>
-              <h1 className="text-2xl font-bold">{client.email}</h1>
-              <p className="text-slate-400 text-sm mt-1">
-                Zarejestrowano: {new Date(client.createdAt).toLocaleDateString('pl-PL')}
-              </p>
+              <h1 className="text-2xl font-bold">{client.companyName || "Brak nazwy ośrodka"}</h1>
+              <p className="text-slate-400 text-sm mt-1">{client.email} | Zarejestrowano: {new Date(client.createdAt).toLocaleDateString('pl-PL')}</p>
             </div>
           </div>
         </div>
 
-        {/* Podsumowanie współpracy */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-b border-gray-100 bg-gray-50">
           <div className="p-6 text-center border-r border-gray-100">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Złożone zlecenia</p>
@@ -117,7 +172,56 @@ export default function ClientProfilePage() {
           </div>
         </div>
 
-        {/* Tabela historii zleceń tego konkretnego klienta */}
+        {/* PANEL EDYCJI DANYCH PRZEZ ADMINA */}
+        {isEditing ? (
+          <form onSubmit={handleUpdateProfile} className="p-8 border-b border-gray-100 bg-blue-50/30">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+              Edycja danych Ośrodka
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-gray-700 mb-1">Nazwa Firmy</label>
+                <input type="text" name="companyName" value={formData.companyName} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">NIP</label>
+                <input type="text" name="nip" value={formData.nip} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Adres</label>
+                <input type="text" name="address" value={formData.address} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Osoba kontaktowa</label>
+                <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Telefon</label>
+                <input type="text" name="phone" value={formData.phone} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500" />
+              </div>
+            </div>
+            
+            <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-6">
+              <label className="block text-sm font-bold text-red-800 mb-1">Zmiana hasła (Zostaw puste, jeśli nie chcesz zmieniać)</label>
+              <input type="text" name="newPassword" placeholder="Wpisz nowe hasło dla klienta..." value={formData.newPassword} onChange={handleFormChange} className="w-full px-3 py-2 border border-red-300 rounded-lg outline-none focus:border-red-500 bg-white" />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-sm">
+                {isSaving ? "Zapisywanie..." : "Zapisz poprawki"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="p-8 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><span className="block text-xs text-gray-500 uppercase font-bold">Nazwa firmy</span><span className="text-sm font-medium">{client.companyName || "Brak"}</span></div>
+            <div><span className="block text-xs text-gray-500 uppercase font-bold">NIP</span><span className="text-sm font-medium">{client.nip || "Brak"}</span></div>
+            <div><span className="block text-xs text-gray-500 uppercase font-bold">Adres</span><span className="text-sm font-medium">{client.address || "Brak"}</span></div>
+            <div><span className="block text-xs text-gray-500 uppercase font-bold">Osoba kontaktowa</span><span className="text-sm font-medium">{client.contactPerson || "Brak"} ({client.phone || "brak telefonu"})</span></div>
+          </div>
+        )}
+
         <div className="p-8">
           <h2 className="text-lg font-bold text-gray-900 mb-6 border-b border-gray-100 pb-2">
             Historia Zamówień Ośrodka

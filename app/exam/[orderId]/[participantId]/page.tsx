@@ -50,7 +50,6 @@ export default function OnlineExamPage() {
 
   const handleSubmit = async () => {
     if (!data) return;
-    
     // Sprawdzamy, czy odpowiedział na wszystkie pytania
     if (Object.keys(answers).length < data.exam.questions.length) {
       if (!confirm("Nie odpowiedziałeś na wszystkie pytania. Czy na pewno chcesz zakończyć test?")) return;
@@ -90,7 +89,8 @@ export default function OnlineExamPage() {
     const finalScore = result?.score ?? data.participant.score ?? 0;
     const finalMax = result?.maxScore ?? data.participant.maxScore ?? 0;
     const percentage = finalMax > 0 ? Math.round((finalScore / finalMax) * 100) : 0;
-    const passed = percentage >= 50; // Zakładamy próg 50%
+    const passed = percentage >= 50;
+    // Zakładamy próg 50%
 
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4 flex items-center justify-center">
@@ -117,8 +117,8 @@ export default function OnlineExamPage() {
 
   // Właściwy ekran rozwiązywania testu
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 flex flex-col">
+      <div className="max-w-3xl mx-auto flex-1 w-full">
         <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden mb-8">
           <div className="bg-slate-900 text-white p-8 text-center">
             <h1 className="text-2xl font-bold mb-2">{data.exam.title}</h1>
@@ -167,7 +167,7 @@ export default function OnlineExamPage() {
               <button 
                 onClick={handleSubmit} 
                 disabled={isSubmitting}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-4 px-12 rounded-xl transition-transform hover:-translate-y-1 shadow-lg disabled:opacity-50"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-4 px-12 rounded-xl transition-transform hover:-translate-y-1 shadow-lg disabled:opacity-50 w-full sm:w-auto"
               >
                 {isSubmitting ? "Wysyłanie..." : "Zakończ i wyślij test"}
               </button>
@@ -175,6 +175,11 @@ export default function OnlineExamPage() {
           </div>
         </div>
       </div>
+
+      {/* NOWOŚĆ: Klauzula RODO dla kursanta */}
+      <footer className="max-w-3xl mx-auto w-full text-center text-xs text-gray-400 mt-4 px-4 pb-8">
+        Administratorem Twoich danych osobowych (w tym imienia, nazwiska oraz wyniku testu) jest Ośrodek Szkoleniowy odpowiedzialny za przeprowadzenie tego egzaminu. Platforma Certyfikacyjna świadczy wyłącznie usługę techniczną polegającą na dostarczeniu oprogramowania egzaminacyjnego.
+      </footer>
     </div>
   );
 }

@@ -20,13 +20,15 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { title, description, isCustom, questions } = body;
+    const { title, description, isCustom, questions, learningOutcomes, level } = body;
 
-    // Tworzymy egzamin i od razu podpinamy do niego pytania wygenerowane przez AI
+    // Tworzymy egzamin i od razu podpinamy do niego pytania wygenerowane przez AI oraz nowe pola
     const newExam = await prisma.examTemplate.create({
       data: {
         title,
         description,
+        learningOutcomes,
+        level,
         isCustom: isCustom || false,
         questions: {
           create: questions && Array.isArray(questions) ? questions.map((q: any) => ({

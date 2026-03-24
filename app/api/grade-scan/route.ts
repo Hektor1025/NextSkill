@@ -9,15 +9,19 @@ const openai = new OpenAI({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { participantId, fileUrl, examTemplateId } = body;
+    const { participantId, fileUrls, fileUrl, examTemplateId } = body;
+    
+    const urlsToProcess = fileUrls || (fileUrl ? [fileUrl] : []);
 
-    // 1. Zapisujemy od razu link do wgranego skanu w profilu kursanta
+    if (urlsToProcess.length === 0) {
+      return NextResponse.json({ error: "Brak plików do weryfikacji" }, { status: 400 });
+    }
+
     await prisma.participant.update({
       where: { id: participantId },
-      data: { scannedTestUrl: fileUrl }
+      data: { scannedTestUrl: urlsToProcess[0] }
     });
 
-    // 2. Pobieramy pytania z bazy (żeby przekazać klucz do AI)
     const questions = await prisma.question.findMany({
       where: { examTemplateId },
       orderBy: { createdAt: 'asc' }
@@ -27,31 +31,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Brak pytań w teście" }, { status: 400 });
     }
 
-    // Budujemy tekstowy klucz dla AI (Zamieniamy 0,1,2,3 na A,B,C,D)
+    // ZAAWANSOWANY KLUCZ: Wysyłamy nie tylko literę, ale PEŁNĄ TREŚĆ odpowiedzi
     const keyString = questions.map((q, i) => {
       const correctLetter = String.fromCharCode(65 + q.correctAnswer);
-      return `${i + 1}. Poprawna odpowiedź: ${correctLetter}`;
+      const correctText = q.options[q.correctAnswer];
+      return `Zadanie ${i + 1}: Poprawna odpowiedź to ${correctLetter} (Treść: "${correctText}")`;
     }).join('\n');
 
-    // 3. Prosimy OpenAI o "przeczytanie" obrazu i ocenę
-    const prompt = `Jesteś bezstronnym egzaminatorem. Załączam zdjęcie rozwiązanego testu wielokrotnego wyboru.
+    // BARDZO RESTRYKCYJNY PROMPT DLA AI
+    const prompt = `Jesteś precyzyjnym i bezstronnym systemem OCR oraz egzaminatorem.
+    Otrzymujesz zdjęcia rozwiązanego testu (może mieć kilka stron).
     
-    Oto Twój klucz odpowiedzi do tego testu:
+    Oto Twój szczegółowy klucz odpowiedzi:
     ${keyString}
     
-    ZADANIE:
-    1. Przeanalizuj uważnie zdjęcie.
-    2. Odczytaj, jakie odpowiedzi zaznaczył kursant na karcie.
-    3. Porównaj je z podanym kluczem.
-    4. Zlicz sumę poprawnych odpowiedzi.
+    ZASADY WERYFIKACJI (BARDZO WAŻNE):
+    1. Przeanalizuj uważnie każde zadanie na skanach. Zignoruj zadania, których nie ma w kluczu.
+    2. Kursant zaznacza odpowiedź stawiając znak (np. X, V, kółko, podkreślenie) przy literze A, B, C lub D, albo zakreślając całą treść odpowiedzi.
+    3. Punkt przyznajesz TYLKO, jeśli zaznaczona odpowiedź idealnie zgadza się z kluczem (zarówno literą, jak i treścią).
+    4. Bądź bardzo dokładny. Zlicz powoli sumę punktów.
     
-    MUSISZ zwrócić wynik WYŁĄCZNIE w formacie JSON (bez znaczników markdown):
+    MUSISZ zwrócić wynik WYŁĄCZNIE jako surowy obiekt JSON (bez żadnych znaczników typu \`\`\`json):
     {
-      "score": <liczba_poprawnie_zaznaczonych>,
+      "score": <liczba_poprawnych_odpowiedzi>,
       "maxScore": ${questions.length}
     }`;
 
-    // Używamy modelu GPT-4o, który obsługuje widzenie komputerowe (Vision)
+    const imageContents = urlsToProcess.map((url: string) => ({
+      type: "image_url",
+      image_url: { url }
+    }));
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o", 
       messages: [
@@ -59,11 +69,12 @@ export async function POST(req: Request) {
           role: "user",
           content: [
             { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: fileUrl } }
+            ...imageContents
           ],
         },
       ],
       max_tokens: 500,
+      temperature: 0.1, // Niska temperatura = wyższa precyzja, brak zmyślania
       response_format: { type: "json_object" }
     });
 
@@ -72,7 +83,6 @@ export async function POST(req: Request) {
 
     const parsedResult = JSON.parse(resultText);
 
-    // 4. Zapisujemy zdobyte punkty w bazie danych kursanta
     const updatedParticipant = await prisma.participant.update({
       where: { id: participantId },
       data: {
@@ -85,6 +95,6 @@ export async function POST(req: Request) {
     return NextResponse.json(updatedParticipant);
   } catch (error) {
     console.error("Błąd AI podczas czytania skanu:", error);
-    return NextResponse.json({ error: "Błąd podczas automatycznego sprawdzania." }, { status: 500 });
+    return NextResponse.json({ error: "Błąd podczas automatycznego sprawdzania. Administrator oceni test ręcznie." }, { status: 500 });
   }
 }

@@ -13,6 +13,8 @@ type ExamTemplate = {
   title: string;
   description: string;
   isCustom: boolean;
+  learningOutcomes?: string | null;
+  level?: string | null;
   questions?: Question[];
 };
 
@@ -20,13 +22,17 @@ export default function ExamsPage() {
   const [exams, setExams] = useState<ExamTemplate[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [learningOutcomes, setLearningOutcomes] = useState("");
+  const [level, setLevel] = useState("");
   const [isCustom, setIsCustom] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   const [questionCount, setQuestionCount] = useState(10);
-  const [difficulty, setDifficulty] = useState("medium"); // NOWOŚĆ: Stan trudności
+  const [difficulty, setDifficulty] = useState("medium");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingOutcomes, setIsGeneratingOutcomes] = useState(false); // NOWOŚĆ: Stan dla efektów AI
   const [questions, setQuestions] = useState<Question[]>([]);
 
   useEffect(() => {
@@ -58,7 +64,6 @@ export default function ExamsPage() {
       const res = await fetch("/api/generate-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Wysyłamy wybrany poziom trudności do AI!
         body: JSON.stringify({ description, count: questionCount, difficulty })
       });
       
@@ -74,6 +79,36 @@ export default function ExamsPage() {
       alert("Błąd połączenia z modułem AI.");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // NOWOŚĆ: Funkcja generująca efekty uczenia się przez AI
+  const handleGenerateOutcomesAI = async () => {
+    if (!description || description.length < 10) {
+      alert("Najpierw wpisz sensowny opis programu szkolenia, na podstawie którego AI ma wygenerować efekty!");
+      return;
+    }
+
+    setIsGeneratingOutcomes(true);
+    try {
+      const res = await fetch("/api/generate-outcomes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description })
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok && data.outcomes) {
+        setLearningOutcomes(data.outcomes); 
+      } else {
+        alert(data.error || "Wystąpił błąd podczas generowania efektów.");
+      }
+    } catch(error) {
+      console.error(error);
+      alert("Błąd połączenia z modułem AI.");
+    } finally {
+      setIsGeneratingOutcomes(false);
     }
   };
 
@@ -98,30 +133,62 @@ export default function ExamsPage() {
     setQuestions(newQuestions);
   };
 
+  const handleEdit = (exam: ExamTemplate) => {
+    setEditingId(exam.id);
+    setTitle(exam.title);
+    setDescription(exam.description || "");
+    setLearningOutcomes(exam.learningOutcomes || "");
+    setLevel(exam.level || "");
+    setIsCustom(exam.isCustom);
+    setQuestions(exam.questions || []);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: string, examTitle: string) => {
+    if (!window.confirm(`Czy na pewno chcesz usunąć szkolenie "${examTitle}"?`)) return;
+    try {
+      const res = await fetch(`/api/exams/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchExams();
+      } else {
+        alert("Nie można usunąć szkolenia (być może jest powiązane ze zleceniami).");
+      }
+    } catch (error) {
+      alert("Błąd podczas usuwania.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/exams", {
-        method: "POST",
+      const url = editingId ? `/api/exams/${editingId}` : "/api/exams";
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, isCustom, questions }),
+        body: JSON.stringify({ title, description, learningOutcomes, level, isCustom, questions }),
       });
 
       if (res.ok) {
         setTitle("");
         setDescription("");
+        setLearningOutcomes("");
+        setLevel("");
         setIsCustom(false);
         setDifficulty("medium");
         setQuestions([]);
         setShowForm(false);
+        setEditingId(null);
         fetchExams();
+      } else {
+        alert("Wystąpił błąd podczas zapisywania.");
       }
     } catch (error) {
       console.error("Błąd zapisu:", error);
     }
   };
 
-  // NOWOŚĆ: System generowania PDF poprzez natywny widok do druku
   const generatePDF = (exam: ExamTemplate) => {
     if (!exam.questions || exam.questions.length === 0) {
       alert("Ten egzamin nie ma jeszcze pytań!");
@@ -136,7 +203,6 @@ export default function ExamsPage() {
 
     const letters = ['A', 'B', 'C', 'D'];
     
-    // Budujemy piękny, sformatowany kod HTML dla testu i klucza odpowiedzi
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="pl">
@@ -154,7 +220,6 @@ export default function ExamsPage() {
           .options { list-style-type: none; padding-left: 0; margin: 0; }
           .option { margin-bottom: 8px; font-size: 15px; display: flex; }
           .option-letter { font-weight: bold; margin-right: 10px; }
-          /* Klasy dla klucza odpowiedzi na nowej stronie */
           .page-break { page-break-before: always; }
           .key-title { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 30px; color: #d32f2f; border-bottom: 2px solid #d32f2f; padding-bottom: 10px;}
           .key-list { column-count: 2; column-gap: 40px; }
@@ -202,7 +267,6 @@ export default function ExamsPage() {
         </div>
 
         <script>
-          // Automatycznie wywołuje okno zapisu do PDF po wczytaniu
           window.onload = function() { window.print(); }
         </script>
       </body>
@@ -220,8 +284,20 @@ export default function ExamsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Pakiety Egzaminów</h1>
           <p className="text-gray-500 mt-1">Zarządzaj wzorami egzaminów i generuj nowe testy za pomocą AI</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm flex items-center">
-          {showForm ? "Anuluj dodawanie" : "+ Dodaj nowy pakiet"}
+        <button onClick={() => {
+          if (showForm) {
+            setShowForm(false);
+            setEditingId(null);
+            setTitle("");
+            setDescription("");
+            setLearningOutcomes("");
+            setLevel("");
+            setQuestions([]);
+          } else {
+            setShowForm(true);
+          }
+        }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm flex items-center">
+          {showForm ? "Anuluj edycję" : "+ Dodaj nowy pakiet"}
         </button>
       </div>
 
@@ -229,22 +305,46 @@ export default function ExamsPage() {
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 mb-8 border-t-4 border-t-blue-500">
           <h2 className="text-xl font-bold mb-6 text-gray-800 flex items-center">
             <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-            Kreator pakietu edukacyjnego
+            {editingId ? "Edycja pakietu edukacyjnego" : "Kreator pakietu edukacyjnego"}
           </h2>
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
+              <div className="md:col-span-1">
                 <label className="block text-sm font-bold text-gray-700 mb-1">Nazwa egzaminu (np. Wózki widłowe)</label>
                 <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors" placeholder="Wpisz nazwę..." />
+              </div>
+              
+              <div className="md:col-span-1">
+                <label className="block text-sm font-bold text-gray-700 mb-1">Poziom (np. Podstawowy)</label>
+                <input type="text" value={level} onChange={(e) => setLevel(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors" placeholder="Wpisz poziom trudności..." />
               </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-bold text-gray-700 mb-1">Opis programu szkolenia (Baza wiedzy dla AI)</label>
-                <textarea required value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] transition-colors" placeholder="Wklej tutaj szczegółowy opis, sylabus lub plan szkolenia..." />
+                <textarea required value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px] transition-colors" placeholder="Wklej tutaj szczegółowy opis, sylabus lub plan szkolenia..." />
               </div>
 
-              {/* PANEL SZTUCZNEJ INTELIGENCJI Z WYBOREM TRUDNOŚCI */}
+              {/* NOWOŚĆ: Sekcja Efektów Uczenia połączona z AI */}
+              <div className="md:col-span-2 bg-blue-50/50 border border-blue-100 p-5 rounded-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-bold text-blue-900">Efekty uczenia się (Do certyfikatu)</label>
+                    <p className="text-xs text-blue-700">Każda linia to osobny punkt. Zostaną zaciągnięte na rewers certyfikatu.</p>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={handleGenerateOutcomesAI} 
+                    disabled={isGeneratingOutcomes}
+                    className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center"
+                  >
+                    {isGeneratingOutcomes ? "Wymyślam..." : "✨ Generuj z Opisu (AI)"}
+                  </button>
+                </div>
+                <textarea value={learningOutcomes} onChange={(e) => setLearningOutcomes(e.target.value)} className="w-full px-4 py-3 border border-blue-200 bg-white rounded-xl focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] transition-colors" placeholder="Nabycie wiedzy z zakresu...&#10;Umiejętność obsługi...&#10;Zabezpieczenie miejsca wypadku..." />
+              </div>
+
+              {/* PANEL SZTUCZNEJ INTELIGENCJI Z WYBOREM TRUDNOŚCI (Do Pytan) */}
               <div className="md:col-span-2 bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-xl border border-indigo-100 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                 <div className="flex-1">
                   <h3 className="font-bold text-indigo-900 mb-1 flex items-center">
@@ -326,10 +426,15 @@ export default function ExamsPage() {
               <label htmlFor="isCustom" className="ml-2 text-sm text-gray-700 cursor-pointer">Oznacz jako "Egzamin Niestandardowy"</label>
             </div>
             
-            <div className="pt-4">
+            <div className="pt-4 flex gap-3">
               <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-bold transition-colors shadow-md w-full sm:w-auto">
-                Zapisz egzamin w bazie
+                {editingId ? "Zapisz zmiany" : "Zapisz egzamin w bazie"}
               </button>
+              {editingId && (
+                <button type="button" onClick={() => setShowForm(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-xl font-bold transition-colors w-full sm:w-auto">
+                  Anuluj
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -355,6 +460,7 @@ export default function ExamsPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-2">
                     <h3 className="text-lg font-bold text-gray-900">{exam.title}</h3>
+                    {exam.level && <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">{exam.level}</span>}
                     {exam.isCustom && <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">Niestandardowy</span>}
                     {exam.questions && exam.questions.length > 0 && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center">
@@ -366,16 +472,23 @@ export default function ExamsPage() {
                   <p className="text-gray-600 text-sm whitespace-pre-wrap">{exam.description}</p>
                 </div>
                 
-                {/* NOWOŚĆ: PRZYCISK GENEROWANIA PDF */}
-                {exam.questions && exam.questions.length > 0 && (
-                  <button 
-                    onClick={() => generatePDF(exam)}
-                    className="flex-shrink-0 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center shadow-sm"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Zapisz jako PDF
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button onClick={() => handleEdit(exam)} className="flex-shrink-0 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 font-bold py-2 px-3 rounded-lg text-sm transition-colors shadow-sm">
+                    Edytuj
                   </button>
-                )}
+                  <button onClick={() => handleDelete(exam.id, exam.title)} className="flex-shrink-0 bg-white hover:bg-red-50 text-red-600 border border-gray-300 hover:border-red-300 font-bold py-2 px-3 rounded-lg text-sm transition-colors shadow-sm">
+                    Usuń
+                  </button>
+                  {exam.questions && exam.questions.length > 0 && (
+                    <button 
+                      onClick={() => generatePDF(exam)}
+                      className="flex-shrink-0 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center shadow-sm"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                      Zapisz jako PDF
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -383,4 +496,4 @@ export default function ExamsPage() {
       </div>
     </div>
   );
-}
+} 

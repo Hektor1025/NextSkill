@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link"; // Dodany import dla linku rejestracji
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -24,16 +25,8 @@ export default function Home() {
     if (res?.error) {
       setError("Nieprawidłowy adres e-mail lub hasło.");
     } else {
-      // Wymuszamy pobranie najświeższej sesji z serwera z pominięciem cache
-      const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
-      const sessionData = await sessionRes.json();
-      
-      // Używamy window.location dla twardego resetu stanu aplikacji
-      if (sessionData?.user?.role === "ADMIN") {
-        window.location.href = "/dashboard"; 
-      } else {
-        window.location.href = "/panel"; 
-      }
+      // Jeśli logowanie się uda, przenosimy do panelu
+      router.push("/dashboard");
     }
   };
 
@@ -47,7 +40,7 @@ export default function Home() {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Platforma Certyfikacyjna</h1>
-          <p className="text-gray-500">Zaloguj się do swojego panelu</p>
+          <p className="text-gray-500">Zaloguj się do swojego panelu zarządzania</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -64,7 +57,7 @@ export default function Home() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50 focus:bg-white"
-              placeholder="twoj@email.pl"
+              placeholder="admin@platforma.pl"
               required
             />
           </div>
@@ -89,14 +82,16 @@ export default function Home() {
           </button>
         </form>
 
-        <div className="mt-8 text-center border-t border-gray-100 pt-6">
+        {/* NOWOŚĆ: Link do Twojego fajnego panelu rejestracji */}
+        <div className="mt-6 pt-6 border-t border-gray-100 text-center">
           <p className="text-sm text-gray-600">
-            Jesteś nowym klientem?{' '}
-            <a href="#" className="text-blue-600 hover:text-blue-800 hover:underline font-semibold transition-colors">
-              Zarejestruj swój ośrodek
-            </a>
+            Ośrodek nie ma jeszcze konta?{" "}
+            <Link href="/register" className="font-bold text-blue-600 hover:text-blue-700 transition-colors">
+              Zarejestruj się tutaj
+            </Link>
           </p>
         </div>
+
       </div>
     </div>
   );

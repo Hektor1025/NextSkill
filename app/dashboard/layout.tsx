@@ -41,7 +41,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Pasek boczny (Sidebar) */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
         <div className="h-16 flex items-center px-6 border-b border-gray-200">
           <span className="text-xl font-bold text-blue-600">Platforma Certyfikacyjna</span>
         </div>
@@ -89,6 +89,11 @@ export default function DashboardLayout({
         <div className="p-8 flex-1 overflow-auto">
           {children}
         </div>
+
+        {/* NOWOŚĆ: Stopka prawna */}
+        <footer className="p-4 text-center text-xs text-gray-400 border-t border-gray-200 mt-auto bg-white">
+          <Link href="/regulamin" className="hover:underline">Regulamin i UPPDO</Link> | <Link href="/polityka-prywatnosci" className="hover:underline">Polityka Prywatności</Link>
+        </footer>
       </main>
     </div>
   );
