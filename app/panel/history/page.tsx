@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { getSession } from "next-auth/react";
 import Link from "next/link";
 
@@ -31,7 +31,7 @@ export default function HistoryPage() {
 
       const res = await fetch(`/api/client-orders?clientId=${clientId}`);
       const data = await res.json();
-      
+
       if (Array.isArray(data)) {
         setOrders(data);
       }
@@ -44,93 +44,165 @@ export default function HistoryPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('pl-PL', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return date.toLocaleDateString("pl-PL", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const getStatusBadge = (status: string) => {
-    switch(status) {
-      case 'NEW':
-        return <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full border border-yellow-200">Wysłano zapotrzebowanie</span>;
-      case 'TEST_READY':
-        return <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200">Testy do pobrania</span>;
-      case 'SCANS_UPLOADED':
-        return <span className="bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1 rounded-full border border-purple-200">Weryfikacja skanów</span>;
-      case 'COMPLETED':
-        return <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full border border-green-200">Certyfikaty gotowe</span>;
+    switch (status) {
+      case "NEW":
+        return (
+          <span className="inline-flex rounded-full border border-yellow-300/15 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-200">
+            Wysłano zapotrzebowanie
+          </span>
+        );
+      case "TEST_READY":
+        return (
+          <span className="inline-flex rounded-full border border-blue-300/15 bg-blue-400/10 px-3 py-1 text-xs font-semibold text-blue-200">
+            Testy do pobrania
+          </span>
+        );
+      case "SCANS_UPLOADED":
+        return (
+          <span className="inline-flex rounded-full border border-purple-300/15 bg-purple-400/10 px-3 py-1 text-xs font-semibold text-purple-200">
+            Weryfikacja skanów
+          </span>
+        );
+      case "COMPLETED":
+        return (
+          <span className="inline-flex rounded-full border border-emerald-300/15 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+            Certyfikaty gotowe
+          </span>
+        );
       default:
-        return <span className="bg-gray-100 text-gray-800 text-xs font-bold px-3 py-1 rounded-full">Nieznany status</span>;
+        return (
+          <span className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-semibold text-slate-300">
+            Nieznany status
+          </span>
+        );
     }
   };
 
-  return (
-    <div className="max-w-5xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Moje Certyfikaty i Zlecenia</h1>
-          <p className="text-gray-500 mt-1">Historia wszystkich Twoich zamówień na platformie</p>
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="rounded-[28px] border border-white/10 bg-white/[0.04] px-10 py-8 text-center backdrop-blur-2xl shadow-[0_40px_120px_rgba(0,0,0,0.35)]">
+          <div className="mx-auto mb-5 h-12 w-12 animate-pulse rounded-full bg-gradient-to-br from-cyan-300 to-blue-500" />
+          <p className="text-lg font-semibold text-white">
+            Ładowanie Twoich zleceń...
+          </p>
+          <p className="mt-2 text-sm text-slate-400">
+            Trwa pobieranie historii zamówień
+          </p>
         </div>
-        <Link 
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.30em] text-cyan-200/65">
+            Orders & Certificates
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold text-white">
+            Moje certyfikaty i zlecenia
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-400 sm:text-[15px]">
+            Historia wszystkich Twoich zamówień na platformie wraz ze statusem
+            realizacji i dostępem do dalszych działań.
+          </p>
+        </div>
+
+        <Link
           href="/panel/new-order"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm flex items-center"
+          className="inline-flex items-center justify-center rounded-[20px] border border-cyan-300/15 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
         >
-          + Nowe Zlecenie
+          + Nowe zlecenie
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        {isLoading ? (
-          <div className="p-12 text-center text-gray-500 font-medium">Ładowanie Twoich zleceń...</div>
-        ) : orders.length === 0 ? (
-          <div className="p-16 text-center">
-            <div className="text-gray-200 mb-4">
-              <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+      <div className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.05] backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
+        {orders.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
+              <svg
+                className="h-10 w-10 text-slate-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
+              </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Brak historii zleceń</h3>
-            <p className="text-gray-500 mb-6">Nie masz jeszcze żadnych aktywnych zamówień na egzaminy.</p>
-            <Link 
-              href="/panel/new-order"
-              className="inline-block bg-blue-50 text-blue-600 font-bold py-2 px-6 rounded-lg hover:bg-blue-100 transition-colors"
-            >
-              Rozpocznij pierwsze zlecenie
-            </Link>
+
+            <h3 className="text-lg font-semibold text-white">
+              Brak historii zleceń
+            </h3>
+            <p className="mt-2 text-sm text-slate-400">
+              Nie masz jeszcze żadnych aktywnych zamówień na egzaminy.
+            </p>
+
+            <div className="mt-6">
+              <Link
+                href="/panel/new-order"
+                className="inline-flex items-center rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15"
+              >
+                Rozpocznij pierwsze zlecenie
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[980px] border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-sm">
-                  <th className="p-5 font-semibold">Rodzaj egzaminu</th>
-                  <th className="p-5 font-semibold">Data zlecenia</th>
-                  <th className="p-5 font-semibold">Status postępu</th>
-                  <th className="p-5 font-semibold text-right">Akcje</th>
+                <tr className="border-b border-white/8 bg-white/[0.03] text-left text-sm text-slate-500">
+                  <th className="p-5 font-medium">Rodzaj egzaminu</th>
+                  <th className="p-5 font-medium">Data zlecenia</th>
+                  <th className="p-5 font-medium">Status postępu</th>
+                  <th className="p-5 font-medium text-right">Akcje</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+
+              <tbody className="divide-y divide-white/8">
                 {orders.map((order) => (
-                  <tr key={order.id} className="hover:bg-slate-50 transition-colors group">
+                  <tr
+                    key={order.id}
+                    className="transition hover:bg-white/[0.03]"
+                  >
                     <td className="p-5">
-                      <p className="font-bold text-slate-800">
-                        {order.examTemplate?.title || "Usunięty pakiet egzaminacyjny"}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">ID: {order.id.split('-')[0]}</p>
+                      <div>
+                        <p className="font-semibold text-white">
+                          {order.examTemplate?.title ||
+                            "Usunięty pakiet egzaminacyjny"}
+                        </p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">
+                          ID: {order.id.split("-")[0]}
+                        </p>
+                      </div>
                     </td>
-                    <td className="p-5 text-slate-600 text-sm font-medium">
+
+                    <td className="p-5 text-sm font-medium text-slate-400">
                       {formatDate(order.createdAt)}
                     </td>
-                    <td className="p-5">
-                      {getStatusBadge(order.status)}
-                    </td>
+
+                    <td className="p-5">{getStatusBadge(order.status)}</td>
+
                     <td className="p-5 text-right">
-                      {/* OŻYWIONY PRZYCISK ZARZĄDZAJ */}
-                      <Link 
+                      <Link
                         href={`/panel/history/${order.id}`}
-                        className="inline-block text-blue-600 hover:text-blue-800 text-sm font-bold bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors"
+                        className="inline-flex items-center rounded-2xl border border-blue-300/15 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-400/15"
                       >
                         Zarządzaj
                       </Link>

@@ -15,77 +15,288 @@ export default function ClientPanelLayout({
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [userEmail, setUserEmail] = useState("");
 
-  // OCHRONIARZ KLIENTA
   useEffect(() => {
     const checkAuth = async () => {
       const res = await fetch("/api/auth/session", { cache: "no-store" });
       const session = await res.json();
-      
+
       if (!session?.user) {
         router.push("/");
       } else if (session.user.role !== "CLIENT") {
-        window.location.href = "/dashboard"; // Adminie, wracaj do siebie!
+        window.location.href = "/dashboard";
       } else {
         setUserEmail(session.user.email);
         setIsAuthorized(true);
       }
     };
+
     checkAuth();
   }, [router]);
 
+  const navLinkClass = (href: string) => {
+    const isActive = pathname === href;
+    return `group relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
+      isActive
+        ? "bg-white/[0.08] text-white border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
+        : "text-slate-300 hover:bg-white/[0.05] hover:text-white border border-transparent"
+    }`;
+  };
+
   if (!isAuthorized) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50 font-medium text-slate-500">Weryfikacja uprawnień klienta...</div>;
+    return (
+      <>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @keyframes pulseSoft {
+                0%,100% { opacity: .65; transform: scale(1); }
+                50% { opacity: 1; transform: scale(1.04); }
+              }
+              .loading-orb {
+                animation: pulseSoft 2s ease-in-out infinite;
+              }
+            `,
+          }}
+        />
+        <div className="relative min-h-screen overflow-hidden bg-[#030712] text-white">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(77,128,255,0.16),transparent_28%),radial-gradient(circle_at_86%_12%,rgba(142,243,255,0.10),transparent_22%),radial-gradient(circle_at_70%_82%,rgba(180,156,255,0.10),transparent_28%),linear-gradient(135deg,#02040c_0%,#050b17_28%,#08101d_58%,#03060d_100%)]" />
+          <div className="relative z-10 flex min-h-screen items-center justify-center px-6">
+            <div className="rounded-[32px] border border-white/10 bg-white/[0.05] px-10 py-8 backdrop-blur-2xl shadow-[0_40px_120px_rgba(0,0,0,0.45)] text-center">
+              <div className="loading-orb mx-auto mb-5 h-14 w-14 rounded-full bg-gradient-to-br from-cyan-300 to-blue-500 blur-[1px]" />
+              <p className="text-lg font-semibold text-white">
+                Weryfikacja uprawnień klienta...
+              </p>
+              <p className="mt-2 text-sm text-slate-400">
+                Trwa sprawdzanie dostępu do panelu ośrodka
+              </p>
+            </div>
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shadow-xl">
-        <div className="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-950">
-          <span className="text-lg font-bold">Strefa Klienta</span>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <Link href="/panel" className={`block px-4 py-3 rounded-lg font-medium transition-colors ${pathname === '/panel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-            Mój pulpit
-          </Link>
-          <Link href="/panel/new-order" className={`block px-4 py-3 rounded-lg font-medium transition-colors ${pathname === '/panel/new-order' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-            Zamów Egzamin
-          </Link>
-          <Link href="/panel/history" className={`block px-4 py-3 rounded-lg font-medium transition-colors ${pathname === '/panel/history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-            Moje Certyfikaty
-          </Link>
-        </nav>
-        <div className="p-4 border-t border-slate-800 bg-slate-950">
-          <button 
-            onClick={() => signOut({ callbackUrl: '/' })}
-            className="w-full px-4 py-2 text-red-400 hover:bg-red-500 hover:text-white font-medium rounded-lg transition-all text-left flex items-center"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            Wyloguj się
-          </button>
-        </div>
-      </aside>
+    <>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @keyframes driftA {
+              0%,100% { transform: translate3d(0,0,0) scale(1); }
+              50% { transform: translate3d(14px,-18px,0) scale(1.04); }
+            }
 
-      <main className="flex-1 flex flex-col">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm">
-          <h1 className="text-xl font-semibold text-gray-800">Panel Ośrodka Szkoleniowego</h1>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-500">Zalogowano: <strong>{userEmail}</strong></span>
-            {/* Dynamiczne kółko dla klienta */}
-            <div className="w-10 h-10 bg-slate-800 rounded-full text-white flex items-center justify-center font-bold shadow-md uppercase">
-              {userEmail.charAt(0)}
+            @keyframes driftB {
+              0%,100% { transform: translate3d(0,0,0) scale(1); }
+              50% { transform: translate3d(-18px,16px,0) scale(0.97); }
+            }
+
+            .drift-a { animation: driftA 14s ease-in-out infinite; }
+            .drift-b { animation: driftB 16s ease-in-out infinite; }
+
+            .panel-grid {
+              background-image:
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+              background-size: 42px 42px;
+              mask-image: radial-gradient(circle at center, rgba(0,0,0,.98), rgba(0,0,0,.72) 58%, transparent 100%);
+              -webkit-mask-image: radial-gradient(circle at center, rgba(0,0,0,.98), rgba(0,0,0,.72) 58%, transparent 100%);
+            }
+          `,
+        }}
+      />
+
+      <div className="relative min-h-screen overflow-hidden bg-[#030712] text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(77,128,255,0.16),transparent_28%),radial-gradient(circle_at_86%_12%,rgba(142,243,255,0.10),transparent_22%),radial-gradient(circle_at_70%_82%,rgba(180,156,255,0.10),transparent_28%),linear-gradient(135deg,#02040c_0%,#050b17_28%,#08101d_58%,#03060d_100%)]" />
+        <div className="pointer-events-none absolute inset-0 panel-grid opacity-60" />
+        <div className="pointer-events-none absolute left-[4%] top-[6%] h-[280px] w-[280px] rounded-full bg-blue-500/20 blur-[120px] drift-a" />
+        <div className="pointer-events-none absolute right-[7%] top-[10%] h-[240px] w-[240px] rounded-full bg-cyan-400/12 blur-[100px] drift-b" />
+        <div className="pointer-events-none absolute bottom-[5%] left-[28%] h-[320px] w-[320px] rounded-full bg-violet-500/10 blur-[130px] drift-a" />
+
+        <div className="relative z-10 flex min-h-screen">
+          <aside className="hidden xl:flex xl:w-[300px] xl:flex-col xl:border-r xl:border-white/10 xl:bg-white/[0.04] xl:backdrop-blur-2xl">
+            <div className="border-b border-white/10 px-7 py-7">
+              <div className="flex items-center gap-4">
+                <img
+                  src="/Wechsler.jpg"
+                  alt="Wechsler Logo"
+                  className="h-14 w-auto object-contain"
+                />
+              </div>
+
+              <div className="mt-6">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.30em] text-cyan-200/70">
+                  Strefa klienta
+                </p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">
+                  Panel ośrodka
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  Zamawianie egzaminów, zarządzanie historią i odbiór certyfikatów.
+                </p>
+              </div>
             </div>
-          </div>
-        </header>
-        <div className="p-8 flex-1 overflow-auto">
-          {children}
+
+            <nav className="flex-1 space-y-2 px-5 py-6">
+              <Link href="/panel" className={navLinkClass("/panel")}>
+                <svg
+                  className="h-5 w-5 text-cyan-200/80"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"
+                  />
+                </svg>
+                <span>Mój pulpit</span>
+              </Link>
+
+              <Link
+                href="/panel/new-order"
+                className={navLinkClass("/panel/new-order")}
+              >
+                <svg
+                  className="h-5 w-5 text-cyan-200/80"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                <span>Zamów egzamin</span>
+              </Link>
+
+              <Link
+                href="/panel/history"
+                className={navLinkClass("/panel/history")}
+              >
+                <svg
+                  className="h-5 w-5 text-cyan-200/80"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                    d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"
+                  />
+                </svg>
+                <span>Moje certyfikaty</span>
+              </Link>
+
+              <Link
+                href="/panel/profile"
+                className={navLinkClass("/panel/profile")}
+              >
+                <svg
+                  className="h-5 w-5 text-cyan-200/80"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                    d="M5.121 17.804A9 9 0 1118.88 17.8M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+                <span>Mój profil</span>
+              </Link>
+            </nav>
+
+            <div className="border-t border-white/10 p-5">
+              <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+                  Zalogowano jako
+                </p>
+                <p className="mt-2 break-all text-sm font-medium text-slate-200">
+                  {userEmail}
+                </p>
+              </div>
+
+              <button
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="flex w-full items-center gap-3 rounded-2xl border border-red-400/15 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+                Wyloguj się
+              </button>
+            </div>
+          </aside>
+
+          <main className="flex min-w-0 flex-1 flex-col">
+            <header className="border-b border-white/10 bg-white/[0.03] backdrop-blur-2xl">
+              <div className="flex h-auto min-h-[88px] flex-col justify-center gap-4 px-5 py-5 sm:px-8 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/65">
+                    Wechsler Polska
+                  </p>
+                  <h1 className="mt-2 text-2xl font-semibold text-white">
+                    Panel ośrodka szkoleniowego
+                  </h1>
+                </div>
+
+                <div className="flex items-center gap-4 self-start xl:self-auto">
+                  <div className="hidden text-right sm:block">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                      Konto
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-slate-200">
+                      {userEmail}
+                    </p>
+                  </div>
+
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-300/25 to-blue-500/25 text-base font-bold uppercase text-white shadow-[0_12px_30px_rgba(0,0,0,0.25)]">
+                    {userEmail.charAt(0)}
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            <div className="flex-1 px-5 py-6 sm:px-8">{children}</div>
+
+            <footer className="border-t border-white/10 bg-white/[0.03] px-5 py-4 text-center text-xs text-slate-500 sm:px-8">
+              <Link
+                href="/regulamin"
+                className="transition hover:text-slate-300 hover:underline"
+              >
+                Regulamin i UPPDO
+              </Link>{" "}
+              |{" "}
+              <Link
+                href="/polityka-prywatnosci"
+                className="transition hover:text-slate-300 hover:underline"
+              >
+                Polityka Prywatności
+              </Link>
+            </footer>
+          </main>
         </div>
-        {/* NOWOŚĆ: Stopka prawna */}
-        <footer className="p-4 text-center text-xs text-slate-400 border-t border-slate-200 mt-auto bg-white">
-          <Link href="/regulamin" className="hover:underline">Regulamin i UPPDO</Link> | <Link href="/polityka-prywatnosci" className="hover:underline">Polityka Prywatności</Link>
-        </footer>
-      </main>
-    </div>
+      </div>
+    </>
   );
 }

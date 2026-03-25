@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 
 type Client = {
@@ -38,7 +38,7 @@ export default function ClientsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    
+
     try {
       const res = await fetch("/api/clients", {
         method: "POST",
@@ -63,68 +63,99 @@ export default function ClientsPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('pl-PL', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return date.toLocaleDateString("pl-PL", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Baza Klientów</h1>
-          <p className="text-gray-500 mt-1">Zarządzaj ośrodkami zarejestrowanymi na platformie</p>
+          <p className="text-[11px] uppercase tracking-[0.30em] text-cyan-200/65">
+            Client Management
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold text-white">
+            Baza klientów
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400 sm:text-[15px]">
+            Zarządzaj ośrodkami zarejestrowanymi na platformie, twórz nowe konta
+            i przechodź do szczegółów organizacji.
+          </p>
         </div>
-        <button 
+
+        <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm flex items-center"
+          className="inline-flex items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15"
         >
           {showForm ? "Anuluj dodawanie" : "+ Dodaj klienta ręcznie"}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 border-l-4 border-l-blue-500">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Utwórz konto dla nowego klienta</h2>
-          
+        <div className="mb-8 overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.05] p-6 backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.28)] sm:p-8">
+          <div className="mb-6 flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/65">
+                Manual Create
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                Utwórz konto dla nowego klienta
+              </h2>
+            </div>
+
+            <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] uppercase tracking-[0.24em] text-slate-400">
+              Nowy ośrodek
+            </div>
+          </div>
+
           {error && (
-            <div className="bg-red-50 text-red-500 p-3 rounded-lg text-sm mb-4 border border-red-100">
-              {error}
+            <div className="mb-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4">
+              <p className="text-sm font-semibold text-red-100">Wystąpił błąd</p>
+              <p className="mt-1 text-sm text-red-100/85">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Adres e-mail klienta</label>
+                <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.30em] text-slate-300/80">
+                  Adres e-mail klienta
+                </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="h-[60px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
                   placeholder="klient@domena.pl"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hasło tymczasowe</label>
+                <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.30em] text-slate-300/80">
+                  Hasło tymczasowe
+                </label>
                 <input
                   type="text"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="h-[60px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
                   placeholder="Wpisz hasło..."
                 />
               </div>
             </div>
-            
+
             <div className="pt-2">
-              <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-[18px] border border-emerald-300/15 bg-emerald-400/10 px-6 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15"
+              >
                 Utwórz konto
               </button>
             </div>
@@ -132,43 +163,97 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-800">Zarejestrowane ośrodki</h2>
-          <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
+      <div className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.05] backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
+        <div className="flex flex-col gap-4 border-b border-white/10 bg-white/[0.03] p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
+              Registered organizations
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-white">
+              Zarejestrowane ośrodki
+            </h2>
+          </div>
+
+          <span className="inline-flex rounded-full border border-cyan-300/15 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-200">
             Łącznie: {clients.length}
           </span>
         </div>
-        
+
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500 font-medium">Ładowanie bazy klientów...</div>
+          <div className="px-6 py-14 text-center">
+            <p className="text-lg font-medium text-white">
+              Ładowanie bazy klientów...
+            </p>
+            <p className="mt-2 text-sm text-slate-400">
+              Trwa pobieranie danych z systemu
+            </p>
+          </div>
         ) : clients.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="text-gray-300 mb-3">
-              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          <div className="px-6 py-16 text-center">
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
+              <svg
+                className="h-10 w-10 text-slate-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                />
+              </svg>
             </div>
-            <p className="text-gray-500 font-medium">Brak klientów w systemie. Dodaj pierwszego klienta!</p>
+
+            <p className="text-lg font-medium text-white">
+              Brak klientów w systemie
+            </p>
+            <p className="mt-2 text-sm text-slate-400">
+              Dodaj pierwszego klienta, aby rozpocząć pracę z bazą organizacji.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[760px] border-collapse">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-sm">
-                  <th className="p-4 font-medium">Adres e-mail</th>
-                  <th className="p-4 font-medium">Data rejestracji</th>
-                  <th className="p-4 font-medium text-right">Akcje</th>
+                <tr className="border-b border-white/8 text-left text-sm text-slate-500">
+                  <th className="p-5 font-medium">Adres e-mail</th>
+                  <th className="p-5 font-medium">Data rejestracji</th>
+                  <th className="p-5 font-medium text-right">Akcje</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+
+              <tbody className="divide-y divide-white/8">
                 {clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 font-bold text-gray-900">{client.email}</td>
-                    <td className="p-4 text-gray-500 text-sm">{formatDate(client.createdAt)}</td>
-                    <td className="p-4 text-right">
-                      {/* OŻYWIONY PRZYCISK */}
-                      <Link 
+                  <tr
+                    key={client.id}
+                    className="transition hover:bg-white/[0.03]"
+                  >
+                    <td className="p-5">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-300/20 to-blue-500/20 text-sm font-bold uppercase text-white">
+                          {client.email.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white">
+                            {client.email}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Konto organizacji
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="p-5 text-sm text-slate-400">
+                      {formatDate(client.createdAt)}
+                    </td>
+
+                    <td className="p-5 text-right">
+                      <Link
                         href={`/dashboard/clients/${client.id}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-bold transition-colors bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100"
+                        className="inline-flex items-center rounded-2xl border border-blue-300/15 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-400/15"
                       >
                         Szczegóły
                       </Link>

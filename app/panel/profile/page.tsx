@@ -1,19 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 export default function ProfilePage() {
   const [userEmail, setUserEmail] = useState("");
-  
+
   const [formData, setFormData] = useState({
     companyName: "",
     nip: "",
     address: "",
     contactPerson: "",
     phone: "",
-    newPassword: "" // Dodany stan dla nowego hasła
+    newPassword: "",
   });
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
@@ -21,9 +21,11 @@ export default function ProfilePage() {
   useEffect(() => {
     const initProfile = async () => {
       try {
-        const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
+        const sessionRes = await fetch("/api/auth/session", {
+          cache: "no-store",
+        });
         const session = await sessionRes.json();
-        
+
         if (session?.user?.email) {
           setUserEmail(session.user.email);
           fetchProfile(session.user.email);
@@ -35,7 +37,7 @@ export default function ProfilePage() {
         setIsLoading(false);
       }
     };
-    
+
     initProfile();
   }, []);
 
@@ -50,7 +52,7 @@ export default function ProfilePage() {
           address: data.address || "",
           contactPerson: data.contactPerson || "",
           phone: data.phone || "",
-          newPassword: "" // Resetujemy pole hasła przy ładowaniu
+          newPassword: "",
         });
       }
     } catch (error) {
@@ -67,7 +69,7 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userEmail) return;
-    
+
     setIsSaving(true);
     setMessage({ type: "", text: "" });
 
@@ -75,105 +77,232 @@ export default function ProfilePage() {
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          email: userEmail, 
-          ...formData 
-        })
+        body: JSON.stringify({
+          email: userEmail,
+          ...formData,
+        }),
       });
 
       if (res.ok) {
-        setMessage({ type: "success", text: "Dane profilu zostały pomyślnie zaktualizowane." });
-        setFormData({ ...formData, newPassword: "" }); // Czyścimy pole hasła po udanym zapisie
+        setMessage({
+          type: "success",
+          text: "Dane profilu zostały pomyślnie zaktualizowane.",
+        });
+        setFormData({ ...formData, newPassword: "" });
       } else {
-        setMessage({ type: "error", text: "Wystąpił błąd podczas zapisywania." });
+        setMessage({
+          type: "error",
+          text: "Wystąpił błąd podczas zapisywania.",
+        });
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Wystąpił błąd połączenia z serwerem." });
+      setMessage({
+        type: "error",
+        text: "Wystąpił błąd połączenia z serwerem.",
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
   if (isLoading) {
-    return <div className="text-center py-12 text-slate-500 font-medium">Ładowanie danych profilu...</div>;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="rounded-[28px] border border-white/10 bg-white/[0.04] px-10 py-8 text-center backdrop-blur-2xl shadow-[0_40px_120px_rgba(0,0,0,0.35)]">
+          <div className="mx-auto mb-5 h-12 w-12 animate-pulse rounded-full bg-gradient-to-br from-cyan-300 to-blue-500" />
+          <p className="text-lg font-semibold text-white">
+            Ładowanie danych profilu...
+          </p>
+          <p className="mt-2 text-sm text-slate-400">
+            Trwa przygotowanie danych organizacji
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-12">
+    <div className="mx-auto max-w-5xl pb-12">
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Mój Profil (Dane Ośrodka)</h1>
-        <p className="text-slate-500 mt-1">Aktualizuj swoje dane. Będą one używane do wystawiania faktur i na certyfikatach.</p>
+        <p className="text-[11px] uppercase tracking-[0.30em] text-cyan-200/65">
+          Organization profile
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold text-white">
+          Mój profil
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-400 sm:text-[15px]">
+          Aktualizuj dane ośrodka. Informacje te będą wykorzystywane do rozliczeń,
+          dokumentów oraz obsługi procesu certyfikacji.
+        </p>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-8 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-bold text-slate-500 mb-1 uppercase tracking-wider">Konto E-mail powiązane z tym Ośrodkiem:</p>
-            <p className="text-xl font-bold text-slate-800">{userEmail}</p>
-          </div>
-          <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+      <div className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.05] backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
+        <div className="border-b border-white/10 bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/70 p-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.30em] text-cyan-200/65">
+                Account identity
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">
+                Konto powiązane z organizacją
+              </h2>
+              <p className="mt-3 text-sm text-slate-400">{userEmail}</p>
+            </div>
+
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-400/10 text-cyan-200">
+              <svg
+                className="h-7 w-7"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8">
+        <form onSubmit={handleSubmit} className="p-6 sm:p-8">
           {message.text && (
-            <div className={`p-4 rounded-xl mb-6 font-medium text-sm border ${message.type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
+            <div
+              className={`mb-6 rounded-[20px] border p-4 text-sm font-medium ${
+                message.type === "success"
+                  ? "border-emerald-300/15 bg-emerald-400/10 text-emerald-100"
+                  : "border-red-400/15 bg-red-500/10 text-red-100"
+              }`}
+            >
               {message.text}
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-slate-700 mb-2">Pełna nazwa firmy / Ośrodka</label>
-              <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} required className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors" />
+              <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300/80">
+                Pełna nazwa firmy / ośrodka
+              </label>
+              <input
+                type="text"
+                name="companyName"
+                value={formData.companyName}
+                onChange={handleChange}
+                required
+                className="h-[58px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Numer NIP</label>
-              <input type="text" name="nip" value={formData.nip} onChange={handleChange} required className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors font-mono" />
+              <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300/80">
+                Numer NIP
+              </label>
+              <input
+                type="text"
+                name="nip"
+                value={formData.nip}
+                onChange={handleChange}
+                required
+                className="h-[58px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 font-mono text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+              />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-slate-700 mb-2">Pełny adres (Ulica, Kod pocztowy, Miasto)</label>
-              <input type="text" name="address" value={formData.address} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors" />
+              <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300/80">
+                Pełny adres
+              </label>
+              <input
+                type="text"
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                className="h-[58px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+              />
             </div>
 
-            <div className="border-t border-slate-100 md:col-span-2 pt-6 mt-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Osoba kontaktowa</label>
-                <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors" placeholder="np. Jan Kowalski" />
-              </div>
+            <div className="md:col-span-2 mt-2 border-t border-white/10 pt-6" />
 
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Telefon kontaktowy</label>
-                <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors" placeholder="+48..." />
-              </div>
+            <div>
+              <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300/80">
+                Osoba kontaktowa
+              </label>
+              <input
+                type="text"
+                name="contactPerson"
+                value={formData.contactPerson}
+                onChange={handleChange}
+                placeholder="np. Jan Kowalski"
+                className="h-[58px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+              />
             </div>
-          </div>
 
-          {/* NOWOŚĆ: Sekcja Bezpieczeństwa - Zmiana hasła przez Klienta */}
-          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-8">
-            <h2 className="text-lg font-bold text-slate-800 mb-2 flex items-center">
-              <svg className="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-              Bezpieczeństwo
-            </h2>
-            <p className="text-sm text-slate-500 mb-4">Jeśli chcesz zmienić hasło do swojego konta, wpisz nowe poniżej. W przeciwnym razie pozostaw to pole puste.</p>
-            <div className="max-w-md">
-              <label className="block text-sm font-bold text-slate-700 mb-2">Nowe hasło</label>
-              <input 
-                type="text" 
-                name="newPassword" 
-                placeholder="Wpisz nowe hasło..." 
-                value={formData.newPassword} 
-                onChange={handleChange} 
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors bg-white" 
+            <div>
+              <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300/80">
+                Telefon kontaktowy
+              </label>
+              <input
+                type="text"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                placeholder="+48..."
+                className="h-[58px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
               />
             </div>
           </div>
 
-          <div className="flex justify-end pt-4 border-t border-slate-100">
-            <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-md disabled:opacity-50">
+          <div className="mb-8 rounded-[28px] border border-white/10 bg-white/[0.04] p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-300">
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-semibold text-white">
+                  Bezpieczeństwo
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Jeśli chcesz zmienić hasło do konta, wpisz nowe poniżej. W przeciwnym
+                  razie pozostaw pole puste.
+                </p>
+              </div>
+            </div>
+
+            <div className="max-w-xl">
+              <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300/80">
+                Nowe hasło
+              </label>
+              <input
+                type="text"
+                name="newPassword"
+                placeholder="Wpisz nowe hasło..."
+                value={formData.newPassword}
+                onChange={handleChange}
+                className="h-[58px] w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end border-t border-white/10 pt-6">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="inline-flex items-center justify-center rounded-[20px] border border-cyan-300/15 bg-cyan-400/10 px-8 py-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:opacity-60"
+            >
               {isSaving ? "Zapisywanie zmian..." : "Zapisz zmiany w profilu"}
             </button>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 type Question = {
   content: string;
@@ -28,11 +28,11 @@ export default function ExamsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
+
   const [questionCount, setQuestionCount] = useState(10);
   const [difficulty, setDifficulty] = useState("medium");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isGeneratingOutcomes, setIsGeneratingOutcomes] = useState(false); // NOWOŚĆ: Stan dla efektów AI
+  const [isGeneratingOutcomes, setIsGeneratingOutcomes] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function ExamsPage() {
 
   const handleGenerateAI = async () => {
     if (!description || description.length < 10) {
-      alert("Najpierw wpisz sensowny opis programu szkolenia (min. 10 znaków)!");
+      alert("Najpierw wpisz sensowny opis programu szkolenia (min. 10 znaków).");
       return;
     }
 
@@ -64,17 +64,17 @@ export default function ExamsPage() {
       const res = await fetch("/api/generate-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description, count: questionCount, difficulty })
+        body: JSON.stringify({ description, count: questionCount, difficulty }),
       });
-      
+
       const data = await res.json();
-      
+
       if (data.questions) {
-        setQuestions(data.questions); 
+        setQuestions(data.questions);
       } else {
-        alert("Błąd: Sztuczna inteligencja zwróciła dane w nieoczekiwanym formacie.");
+        alert("Błąd: AI zwróciło dane w nieoczekiwanym formacie.");
       }
-    } catch(error) {
+    } catch (error) {
       console.error(error);
       alert("Błąd połączenia z modułem AI.");
     } finally {
@@ -82,10 +82,11 @@ export default function ExamsPage() {
     }
   };
 
-  // NOWOŚĆ: Funkcja generująca efekty uczenia się przez AI
   const handleGenerateOutcomesAI = async () => {
     if (!description || description.length < 10) {
-      alert("Najpierw wpisz sensowny opis programu szkolenia, na podstawie którego AI ma wygenerować efekty!");
+      alert(
+        "Najpierw wpisz sensowny opis programu szkolenia, na podstawie którego AI ma wygenerować efekty."
+      );
       return;
     }
 
@@ -94,17 +95,17 @@ export default function ExamsPage() {
       const res = await fetch("/api/generate-outcomes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description })
+        body: JSON.stringify({ description }),
       });
-      
+
       const data = await res.json();
-      
+
       if (res.ok && data.outcomes) {
-        setLearningOutcomes(data.outcomes); 
+        setLearningOutcomes(data.outcomes);
       } else {
         alert(data.error || "Wystąpił błąd podczas generowania efektów.");
       }
-    } catch(error) {
+    } catch (error) {
       console.error(error);
       alert("Błąd połączenia z modułem AI.");
     } finally {
@@ -133,6 +134,18 @@ export default function ExamsPage() {
     setQuestions(newQuestions);
   };
 
+  const resetForm = () => {
+    setEditingId(null);
+    setTitle("");
+    setDescription("");
+    setLearningOutcomes("");
+    setLevel("");
+    setIsCustom(false);
+    setDifficulty("medium");
+    setQuestions([]);
+    setQuestionCount(10);
+  };
+
   const handleEdit = (exam: ExamTemplate) => {
     setEditingId(exam.id);
     setTitle(exam.title);
@@ -145,7 +158,10 @@ export default function ExamsPage() {
   };
 
   const handleDelete = async (id: string, examTitle: string) => {
-    if (!window.confirm(`Czy na pewno chcesz usunąć szkolenie "${examTitle}"?`)) return;
+    if (!window.confirm(`Czy na pewno chcesz usunąć szkolenie "${examTitle}"?`)) {
+      return;
+    }
+
     try {
       const res = await fetch(`/api/exams/${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -160,6 +176,7 @@ export default function ExamsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
       const url = editingId ? `/api/exams/${editingId}` : "/api/exams";
       const method = editingId ? "PUT" : "POST";
@@ -167,19 +184,19 @@ export default function ExamsPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, learningOutcomes, level, isCustom, questions }),
+        body: JSON.stringify({
+          title,
+          description,
+          learningOutcomes,
+          level,
+          isCustom,
+          questions,
+        }),
       });
 
       if (res.ok) {
-        setTitle("");
-        setDescription("");
-        setLearningOutcomes("");
-        setLevel("");
-        setIsCustom(false);
-        setDifficulty("medium");
-        setQuestions([]);
+        resetForm();
         setShowForm(false);
-        setEditingId(null);
         fetchExams();
       } else {
         alert("Wystąpił błąd podczas zapisywania.");
@@ -191,18 +208,18 @@ export default function ExamsPage() {
 
   const generatePDF = (exam: ExamTemplate) => {
     if (!exam.questions || exam.questions.length === 0) {
-      alert("Ten egzamin nie ma jeszcze pytań!");
+      alert("Ten egzamin nie ma jeszcze pytań.");
       return;
     }
 
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     if (!printWindow) {
       alert("Proszę zezwolić na wyskakujące okienka (pop-ups), aby wygenerować PDF.");
       return;
     }
 
-    const letters = ['A', 'B', 'C', 'D'];
-    
+    const letters = ["A", "B", "C", "D"];
+
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="pl">
@@ -210,7 +227,7 @@ export default function ExamsPage() {
         <meta charset="UTF-8">
         <title>Egzamin - ${exam.title}</title>
         <style>
-          body { font-family: 'Arial', sans-serif; color: #222; max-width: 800px; margin: 0 auto; padding: 40px; line-height: 1.5; }
+          body { font-family: Arial, sans-serif; color: #222; max-width: 800px; margin: 0 auto; padding: 40px; line-height: 1.5; }
           .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
           .title { font-size: 24px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
           .student-info { display: flex; justify-content: space-between; margin-top: 30px; font-size: 16px; }
@@ -221,7 +238,7 @@ export default function ExamsPage() {
           .option { margin-bottom: 8px; font-size: 15px; display: flex; }
           .option-letter { font-weight: bold; margin-right: 10px; }
           .page-break { page-break-before: always; }
-          .key-title { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 30px; color: #d32f2f; border-bottom: 2px solid #d32f2f; padding-bottom: 10px;}
+          .key-title { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 30px; color: #d32f2f; border-bottom: 2px solid #d32f2f; padding-bottom: 10px; }
           .key-list { column-count: 2; column-gap: 40px; }
           .key-item { margin-bottom: 10px; font-size: 16px; page-break-inside: avoid; }
           @media print {
@@ -241,29 +258,41 @@ export default function ExamsPage() {
         </div>
 
         <div class="questions">
-          ${exam.questions.map((q, index) => `
+          ${exam.questions
+            .map(
+              (q, index) => `
             <div class="question-block">
               <div class="question-text">${index + 1}. ${q.content}</div>
               <ul class="options">
-                ${q.options.map((opt, optIndex) => `
+                ${q.options
+                  .map(
+                    (opt, optIndex) => `
                   <li class="option">
-                    <span class="option-letter">${letters[optIndex]}.</span> 
+                    <span class="option-letter">${letters[optIndex]}.</span>
                     <span>${opt}</span>
                   </li>
-                `).join('')}
+                `
+                  )
+                  .join("")}
               </ul>
             </div>
-          `).join('')}
+          `
+            )
+            .join("")}
         </div>
 
         <div class="page-break"></div>
         <div class="key-title">KLUCZ ODPOWIEDZI DLA EGZAMINATORA (NIE DRUKOWAĆ DLA KURSANTÓW)</div>
         <div class="key-list">
-          ${exam.questions.map((q, index) => `
+          ${exam.questions
+            .map(
+              (q, index) => `
             <div class="key-item">
               <strong>Zadanie ${index + 1}:</strong> Prawidłowa odpowiedź: <strong>${letters[q.correctAnswer]}</strong>
             </div>
-          `).join('')}
+          `
+            )
+            .join("")}
         </div>
 
         <script>
@@ -277,138 +306,289 @@ export default function ExamsPage() {
     printWindow.document.close();
   };
 
+  const difficultyLabel =
+    difficulty === "easy"
+      ? "Łatwy"
+      : difficulty === "hard"
+      ? "Trudny"
+      : "Średni";
+
   return (
-    <div className="max-w-5xl mx-auto pb-12">
-      <div className="flex justify-between items-center mb-8">
+    <div className="mx-auto max-w-7xl pb-12">
+      <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pakiety Egzaminów</h1>
-          <p className="text-gray-500 mt-1">Zarządzaj wzorami egzaminów i generuj nowe testy za pomocą AI</p>
+          <p className="text-[11px] uppercase tracking-[0.30em] text-cyan-200/65">
+            Exam Management
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold text-white">
+            Pakiety egzaminów
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-400 sm:text-[15px]">
+            Zarządzaj wzorami egzaminów, generuj testy i efekty uczenia z użyciem AI
+            oraz przygotowuj pakiety gotowe do wykorzystania w procesie certyfikacji.
+          </p>
         </div>
-        <button onClick={() => {
-          if (showForm) {
-            setShowForm(false);
-            setEditingId(null);
-            setTitle("");
-            setDescription("");
-            setLearningOutcomes("");
-            setLevel("");
-            setQuestions([]);
-          } else {
-            setShowForm(true);
-          }
-        }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm flex items-center">
+
+        <button
+          onClick={() => {
+            if (showForm) {
+              setShowForm(false);
+              resetForm();
+            } else {
+              setShowForm(true);
+            }
+          }}
+          className="inline-flex items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15"
+        >
           {showForm ? "Anuluj edycję" : "+ Dodaj nowy pakiet"}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 mb-8 border-t-4 border-t-blue-500">
-          <h2 className="text-xl font-bold mb-6 text-gray-800 flex items-center">
-            <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-            {editingId ? "Edycja pakietu edukacyjnego" : "Kreator pakietu edukacyjnego"}
-          </h2>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-1">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Nazwa egzaminu (np. Wózki widłowe)</label>
-                <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors" placeholder="Wpisz nazwę..." />
+        <div className="mb-8 overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.05] backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
+          <div className="border-b border-white/10 bg-white/[0.03] p-6 sm:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/65">
+                  {editingId ? "Edit mode" : "Exam creator"}
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  {editingId
+                    ? "Edycja pakietu edukacyjnego"
+                    : "Kreator pakietu edukacyjnego"}
+                </h2>
               </div>
-              
-              <div className="md:col-span-1">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Poziom (np. Podstawowy)</label>
-                <input type="text" value={level} onChange={(e) => setLevel(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors" placeholder="Wpisz poziom trudności..." />
+
+              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] uppercase tracking-[0.24em] text-slate-400">
+                AI + baza wiedzy
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-8 p-6 sm:p-8">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div>
+                <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.30em] text-slate-300/80">
+                  Nazwa egzaminu
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="h-[60px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+                  placeholder="Np. Wózki widłowe"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.30em] text-slate-300/80">
+                  Poziom
+                </label>
+                <input
+                  type="text"
+                  value={level}
+                  onChange={(e) => setLevel(e.target.value)}
+                  className="h-[60px] w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-5 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+                  placeholder="Np. Podstawowy"
+                />
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Opis programu szkolenia (Baza wiedzy dla AI)</label>
-                <textarea required value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px] transition-colors" placeholder="Wklej tutaj szczegółowy opis, sylabus lub plan szkolenia..." />
+                <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.30em] text-slate-300/80">
+                  Opis programu szkolenia
+                </label>
+                <textarea
+                  required
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="min-h-[140px] w-full rounded-[20px] border border-white/10 bg-white/[0.04] px-5 py-4 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+                  placeholder="Wklej tutaj szczegółowy opis, sylabus lub plan szkolenia..."
+                />
               </div>
 
-              {/* NOWOŚĆ: Sekcja Efektów Uczenia połączona z AI */}
-              <div className="md:col-span-2 bg-blue-50/50 border border-blue-100 p-5 rounded-xl">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
+              <div className="md:col-span-2 overflow-hidden rounded-[28px] border border-cyan-300/10 bg-gradient-to-br from-cyan-400/10 via-blue-500/5 to-transparent p-5 sm:p-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <label className="block text-sm font-bold text-blue-900">Efekty uczenia się (Do certyfikatu)</label>
-                    <p className="text-xs text-blue-700">Każda linia to osobny punkt. Zostaną zaciągnięte na rewers certyfikatu.</p>
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/65">
+                      Learning outcomes
+                    </p>
+                    <h3 className="mt-2 text-lg font-semibold text-white">
+                      Efekty uczenia się
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-400">
+                      Każda linia to osobny punkt. Zostaną wykorzystane na certyfikacie.
+                    </p>
                   </div>
-                  <button 
-                    type="button" 
-                    onClick={handleGenerateOutcomesAI} 
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateOutcomesAI}
                     disabled={isGeneratingOutcomes}
-                    className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center"
+                    className="inline-flex items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15 disabled:opacity-60"
                   >
-                    {isGeneratingOutcomes ? "Wymyślam..." : "✨ Generuj z Opisu (AI)"}
+                    {isGeneratingOutcomes
+                      ? "Generowanie..."
+                      : "✨ Generuj z opisu (AI)"}
                   </button>
                 </div>
-                <textarea value={learningOutcomes} onChange={(e) => setLearningOutcomes(e.target.value)} className="w-full px-4 py-3 border border-blue-200 bg-white rounded-xl focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] transition-colors" placeholder="Nabycie wiedzy z zakresu...&#10;Umiejętność obsługi...&#10;Zabezpieczenie miejsca wypadku..." />
+
+                <textarea
+                  value={learningOutcomes}
+                  onChange={(e) => setLearningOutcomes(e.target.value)}
+                  className="min-h-[150px] w-full rounded-[20px] border border-white/10 bg-white/[0.05] px-5 py-4 text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-cyan-300/10"
+                  placeholder={`Nabycie wiedzy z zakresu...\nUmiejętność obsługi...\nZabezpieczenie miejsca wypadku...`}
+                />
               </div>
 
-              {/* PANEL SZTUCZNEJ INTELIGENCJI Z WYBOREM TRUDNOŚCI (Do Pytan) */}
-              <div className="md:col-span-2 bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-xl border border-indigo-100 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-                <div className="flex-1">
-                  <h3 className="font-bold text-indigo-900 mb-1 flex items-center">
-                    <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    Generator Testów AI
-                  </h3>
-                  <p className="text-sm text-indigo-700">Skonfiguruj parametry i wygeneruj profesjonalny test.</p>
-                </div>
-                
-                <div className="flex flex-wrap items-end gap-4 w-full lg:w-auto">
-                  <div className="flex flex-col">
-                    <label className="text-xs font-bold text-indigo-800 mb-1">Poziom trudności:</label>
-                    <select 
-                      value={difficulty} 
-                      onChange={(e) => setDifficulty(e.target.value)}
-                      className="px-3 py-2 border border-indigo-200 rounded-lg outline-none bg-white text-indigo-900 text-sm font-medium"
-                    >
-                      <option value="easy">🟢 Łatwy (Podstawy)</option>
-                      <option value="medium">🟡 Średni (Standard)</option>
-                      <option value="hard">🔴 Trudny (Zaawansowany)</option>
-                    </select>
+              <div className="md:col-span-2 overflow-hidden rounded-[28px] border border-indigo-300/10 bg-gradient-to-br from-indigo-400/10 via-blue-500/5 to-transparent p-5 sm:p-6">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="max-w-xl">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-indigo-200/65">
+                      AI Generator
+                    </p>
+                    <h3 className="mt-2 text-lg font-semibold text-white">
+                      Generator testów AI
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Skonfiguruj poziom trudności i liczbę pytań, a następnie wygeneruj
+                      profesjonalny zestaw pytań egzaminacyjnych.
+                    </p>
                   </div>
 
-                  <div className="flex flex-col">
-                    <label className="text-xs font-bold text-indigo-800 mb-1">Liczba pytań:</label>
-                    <input type="number" min="1" max="50" value={questionCount} onChange={(e) => setQuestionCount(Number(e.target.value))} className="w-20 px-3 py-2 border border-indigo-200 rounded-lg outline-none text-center bg-white" />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300/75">
+                        Trudność
+                      </label>
+                      <select
+                        value={difficulty}
+                        onChange={(e) => setDifficulty(e.target.value)}
+                        className="h-[56px] w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-4 text-sm font-medium text-white outline-none transition focus:border-indigo-300/40 focus:ring-4 focus:ring-indigo-300/10"
+                      >
+                        <option value="easy">🟢 Łatwy</option>
+                        <option value="medium">🟡 Średni</option>
+                        <option value="hard">🔴 Trudny</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300/75">
+                        Liczba pytań
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={questionCount}
+                        onChange={(e) => setQuestionCount(Number(e.target.value))}
+                        className="h-[56px] w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-4 text-center text-white outline-none transition focus:border-indigo-300/40 focus:ring-4 focus:ring-indigo-300/10"
+                      />
+                    </div>
+
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={handleGenerateAI}
+                        disabled={isGenerating}
+                        className="inline-flex h-[56px] w-full items-center justify-center rounded-[18px] border border-indigo-300/15 bg-indigo-400/10 px-5 text-sm font-semibold text-indigo-200 transition hover:bg-indigo-400/15 disabled:opacity-60"
+                      >
+                        {isGenerating ? "Generowanie..." : "Generuj pytania"}
+                      </button>
+                    </div>
                   </div>
-                  
-                  <button type="button" onClick={handleGenerateAI} disabled={isGenerating} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center whitespace-nowrap h-10">
-                    {isGenerating ? (
-                      <span className="flex items-center"><svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Wymyślam...</span>
-                    ) : "Generuj pytania"}
-                  </button>
+                </div>
+
+                <div className="mt-5 inline-flex rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] uppercase tracking-[0.24em] text-slate-400">
+                  Poziom: {difficultyLabel} • Pytań: {questionCount}
                 </div>
               </div>
             </div>
 
             {questions.length > 0 && (
-              <div className="mt-8 border-t border-gray-100 pt-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Podgląd i edycja testu ({questions.length} pytań)</h3>
+              <div className="border-t border-white/10 pt-8">
+                <div className="mb-6">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
+                    Questions preview
+                  </p>
+                  <h3 className="mt-2 text-xl font-semibold text-white">
+                    Podgląd i edycja testu ({questions.length} pytań)
+                  </h3>
+                </div>
+
                 <div className="space-y-6">
                   {questions.map((q, qIndex) => (
-                    <div key={qIndex} className="bg-gray-50 border border-gray-200 rounded-xl p-6 relative group">
-                      <button type="button" onClick={() => removeQuestion(qIndex)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    <div
+                      key={qIndex}
+                      className="group relative rounded-[28px] border border-white/10 bg-white/[0.04] p-5 sm:p-6"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => removeQuestion(qIndex)}
+                        className="absolute right-5 top-5 rounded-full border border-red-400/15 bg-red-500/10 p-2 text-red-200 opacity-0 transition hover:bg-red-500/15 group-hover:opacity-100"
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="1.8"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
                       </button>
-                      
-                      <div className="mb-4 pr-8">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pytanie {qIndex + 1}</label>
-                        <input type="text" value={q.content} onChange={(e) => handleQuestionChange(qIndex, "content", e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none font-medium text-gray-900 focus:border-blue-500 bg-white" />
+
+                      <div className="mb-5 pr-10">
+                        <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+                          Pytanie {qIndex + 1}
+                        </label>
+                        <input
+                          type="text"
+                          value={q.content}
+                          onChange={(e) =>
+                            handleQuestionChange(qIndex, "content", e.target.value)
+                          }
+                          className="h-[56px] w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-4 font-medium text-white outline-none transition focus:border-cyan-300/40 focus:ring-4 focus:ring-cyan-300/10"
+                        />
                       </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         {q.options.map((opt, optIndex) => (
-                          <div key={optIndex} className="flex items-center">
-                            <span className="w-8 h-8 flex items-center justify-center bg-gray-200 text-gray-700 rounded-l-lg font-bold text-sm border-y border-l border-gray-300">{String.fromCharCode(65 + optIndex)}</span>
-                            <input type="text" value={opt} onChange={(e) => handleOptionChange(qIndex, optIndex, e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-r-lg outline-none text-sm focus:border-blue-500 bg-white" />
+                          <div key={optIndex} className="flex overflow-hidden rounded-[18px] border border-white/10">
+                            <span className="flex h-[56px] w-14 items-center justify-center bg-white/[0.06] text-sm font-bold text-slate-300">
+                              {String.fromCharCode(65 + optIndex)}
+                            </span>
+                            <input
+                              type="text"
+                              value={opt}
+                              onChange={(e) =>
+                                handleOptionChange(qIndex, optIndex, e.target.value)
+                              }
+                              className="h-[56px] w-full bg-white/[0.04] px-4 text-sm text-white outline-none transition focus:bg-white/[0.06]"
+                            />
                           </div>
                         ))}
                       </div>
-                      
-                      <div className="mt-4 flex items-center bg-green-50 px-4 py-2 rounded-lg border border-green-200 w-max">
-                        <label className="text-sm font-bold text-green-800 mr-3">Poprawna odpowiedź (Klucz):</label>
-                        <select value={q.correctAnswer} onChange={(e) => handleQuestionChange(qIndex, "correctAnswer", e.target.value)} className="bg-white border border-green-300 text-green-900 text-sm rounded outline-none px-2 py-1 font-bold cursor-pointer">
+
+                      <div className="mt-5 inline-flex items-center gap-3 rounded-2xl border border-emerald-300/15 bg-emerald-400/10 px-4 py-3">
+                        <label className="text-sm font-semibold text-emerald-200">
+                          Poprawna odpowiedź:
+                        </label>
+                        <select
+                          value={q.correctAnswer}
+                          onChange={(e) =>
+                            handleQuestionChange(
+                              qIndex,
+                              "correctAnswer",
+                              e.target.value
+                            )
+                          }
+                          className="rounded-xl border border-emerald-300/20 bg-white/[0.08] px-3 py-2 text-sm font-bold text-white outline-none"
+                        >
                           <option value={0}>A</option>
                           <option value={1}>B</option>
                           <option value={2}>C</option>
@@ -421,17 +601,39 @@ export default function ExamsPage() {
               </div>
             )}
 
-            <div className="flex items-center mt-6 pt-6 border-t border-gray-100">
-              <input type="checkbox" id="isCustom" checked={isCustom} onChange={(e) => setIsCustom(e.target.checked)} className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer" />
-              <label htmlFor="isCustom" className="ml-2 text-sm text-gray-700 cursor-pointer">Oznacz jako "Egzamin Niestandardowy"</label>
+            <div className="flex items-center gap-3 border-t border-white/10 pt-6">
+              <input
+                type="checkbox"
+                id="isCustom"
+                checked={isCustom}
+                onChange={(e) => setIsCustom(e.target.checked)}
+                className="h-4 w-4 rounded border-white/20 bg-white/10 accent-cyan-300"
+              />
+              <label
+                htmlFor="isCustom"
+                className="cursor-pointer text-sm text-slate-300"
+              >
+                Oznacz jako „Egzamin niestandardowy”
+              </label>
             </div>
-            
-            <div className="pt-4 flex gap-3">
-              <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-bold transition-colors shadow-md w-full sm:w-auto">
+
+            <div className="flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row">
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-[18px] border border-emerald-300/15 bg-emerald-400/10 px-8 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15"
+              >
                 {editingId ? "Zapisz zmiany" : "Zapisz egzamin w bazie"}
               </button>
+
               {editingId && (
-                <button type="button" onClick={() => setShowForm(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-xl font-bold transition-colors w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false);
+                    resetForm();
+                  }}
+                  className="inline-flex items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+                >
                   Anuluj
                 </button>
               )}
@@ -440,51 +642,110 @@ export default function ExamsPage() {
         </div>
       )}
 
-      {/* LISTA EGZAMINÓW */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-          <h2 className="text-lg font-bold text-gray-800">Dostępne pakiety w systemie</h2>
-          <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">Łącznie: {exams.length}</span>
+      <div className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.05] backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
+        <div className="flex flex-col gap-4 border-b border-white/10 bg-white/[0.03] p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
+              Available templates
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-white">
+              Dostępne pakiety w systemie
+            </h2>
+          </div>
+
+          <span className="inline-flex rounded-full border border-cyan-300/15 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-200">
+            Łącznie: {exams.length}
+          </span>
         </div>
-        
+
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500 font-medium">Ładowanie danych z bazy...</div>
+          <div className="px-6 py-14 text-center">
+            <p className="text-lg font-medium text-white">
+              Ładowanie danych z bazy...
+            </p>
+            <p className="mt-2 text-sm text-slate-400">
+              Trwa pobieranie pakietów egzaminacyjnych
+            </p>
+          </div>
         ) : exams.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-gray-500 font-medium">Brak egzaminów w systemie. Użyj generatora AI, aby stworzyć pierwszy pakiet!</p>
+          <div className="px-6 py-16 text-center">
+            <p className="text-lg font-medium text-white">
+              Brak egzaminów w systemie
+            </p>
+            <p className="mt-2 text-sm text-slate-400">
+              Użyj generatora AI, aby stworzyć pierwszy pakiet.
+            </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-white/8">
             {exams.map((exam) => (
-              <div key={exam.id} className="p-6 hover:bg-gray-50 transition-colors flex flex-col sm:flex-row justify-between items-start gap-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3 mb-2">
-                    <h3 className="text-lg font-bold text-gray-900">{exam.title}</h3>
-                    {exam.level && <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">{exam.level}</span>}
-                    {exam.isCustom && <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">Niestandardowy</span>}
+              <div
+                key={exam.id}
+                className="flex flex-col gap-5 p-6 transition hover:bg-white/[0.03] lg:flex-row lg:items-start lg:justify-between"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="mb-3 flex flex-wrap items-center gap-3">
+                    <h3 className="text-xl font-semibold text-white">
+                      {exam.title}
+                    </h3>
+
+                    {exam.level && (
+                      <span className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-semibold text-slate-300">
+                        {exam.level}
+                      </span>
+                    )}
+
+                    {exam.isCustom && (
+                      <span className="inline-flex rounded-full border border-purple-300/15 bg-purple-400/10 px-3 py-1 text-xs font-semibold text-purple-200">
+                        Niestandardowy
+                      </span>
+                    )}
+
                     {exam.questions && exam.questions.length > 0 && (
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center">
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                      <span className="inline-flex rounded-full border border-indigo-300/15 bg-indigo-400/10 px-3 py-1 text-xs font-semibold text-indigo-200">
                         Baza: {exam.questions.length} pytań
                       </span>
                     )}
                   </div>
-                  <p className="text-gray-600 text-sm whitespace-pre-wrap">{exam.description}</p>
+
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-400">
+                    {exam.description}
+                  </p>
                 </div>
-                
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button onClick={() => handleEdit(exam)} className="flex-shrink-0 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 font-bold py-2 px-3 rounded-lg text-sm transition-colors shadow-sm">
+
+                <div className="flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
+                  <button
+                    onClick={() => handleEdit(exam)}
+                    className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+                  >
                     Edytuj
                   </button>
-                  <button onClick={() => handleDelete(exam.id, exam.title)} className="flex-shrink-0 bg-white hover:bg-red-50 text-red-600 border border-gray-300 hover:border-red-300 font-bold py-2 px-3 rounded-lg text-sm transition-colors shadow-sm">
+
+                  <button
+                    onClick={() => handleDelete(exam.id, exam.title)}
+                    className="inline-flex items-center justify-center rounded-2xl border border-red-400/15 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
+                  >
                     Usuń
                   </button>
+
                   {exam.questions && exam.questions.length > 0 && (
-                    <button 
+                    <button
                       onClick={() => generatePDF(exam)}
-                      className="flex-shrink-0 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center shadow-sm"
+                      className="inline-flex items-center justify-center rounded-2xl border border-rose-300/15 bg-rose-400/10 px-4 py-2.5 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/15"
                     >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                      <svg
+                        className="mr-2 h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="1.8"
+                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
                       Zapisz jako PDF
                     </button>
                   )}
@@ -496,4 +757,4 @@ export default function ExamsPage() {
       </div>
     </div>
   );
-} 
+}
