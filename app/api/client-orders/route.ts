@@ -1,33 +1,74 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import { computeOrderWorkflow } from "../../../lib/order-workflow";
 
 export async function GET(req: Request) {
   try {
-    // Odczytujemy ID klienta z paska adresu (parametr zapytania)
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");
 
     if (!clientId) {
-      return NextResponse.json({ error: "Brak identyfikatora klienta" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Brak identyfikatora klienta" },
+        { status: 400 }
+      );
     }
 
-    // Szukamy w bazie zleceń tylko dla tego konkretnego ID
     const orders = await prisma.order.findMany({
       where: {
-        clientId: clientId,
+        clientId,
       },
-      // Dołączamy informacje o szablonie egzaminu, żeby mieć jego tytuł!
       include: {
-        examTemplate: true,
+        examTemplate: {
+          select: {
+            title: true,
+          },
+        },
+        participants: {
+          select: {
+            id: true,
+            certificateUrl: true,
+            score: true,
+            maxScore: true,
+            testFinished: true,
+            scannedTestUrl: true,
+          },
+        },
+        documents: {
+          select: {
+            id: true,
+            fileType: true,
+            createdAt: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc', // Sortujemy od najnowszego
+        createdAt: "desc",
       },
     });
 
-    return NextResponse.json(orders);
+    const payload = orders.map((order) => ({
+      id: order.id,
+      status: order.status,
+      createdAt: order.createdAt,
+      invoiceUrl: order.invoiceUrl,
+      generatedTestUrl: order.generatedTestUrl,
+      examTemplate: order.examTemplate,
+      workflow: computeOrderWorkflow({
+        status: order.status,
+        invoiceUrl: order.invoiceUrl,
+        generatedTestUrl: order.generatedTestUrl,
+        participants: order.participants,
+        documents: order.documents,
+      }),
+    }));
+
+    return NextResponse.json(payload);
   } catch (error) {
-    console.error("Błąd pobierania historii zleceń:", error);
-    return NextResponse.json({ error: "Wystąpił błąd serwera" }, { status: 500 });
+    console.error("Błąd pobierania zleceń klienta:", error);
+    return NextResponse.json(
+      { error: "Wystąpił błąd serwera" },
+      { status: 500 }
+    );
   }
 }

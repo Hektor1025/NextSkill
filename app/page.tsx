@@ -33,10 +33,16 @@ export default function LoginPage() {
       });
 
       if (res?.error) {
-        setError("Nieprawidłowy adres e-mail lub hasło. Spróbuj ponownie.");
-        setIsLoading(false);
-        return;
-      }
+  if (res.error.includes("ACCOUNT_LOCKED")) {
+    setError(
+      "Konto zostało czasowo zablokowane po wielu błędnych próbach logowania. Spróbuj ponownie za 15 minut lub użyj resetu hasła."
+    );
+  } else {
+    setError("Nieprawidłowy adres e-mail lub hasło. Spróbuj ponownie.");
+  }
+  setIsLoading(false);
+  return;
+}
 
       const sessionRes = await fetch("/api/auth/session");
       const session = await sessionRes.json();
@@ -53,11 +59,9 @@ export default function LoginPage() {
   };
 
   const handleForgotPassword = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    alert(
-      "Funkcja odzyskiwania hasła zostanie aktywowana wkrótce. Skontaktuj się z administratorem systemu."
-    );
-  };
+  e.preventDefault();
+  router.push("/forgot-password");
+};
 
   if (!isMounted) return null;
 
@@ -361,7 +365,7 @@ export default function LoginPage() {
               <div className="reveal-1 mb-8 flex items-center gap-4">
                 <div className="flex items-center justify-center">
                   <img
-                    src="/Wechsler.jpg"
+                    src="/Wechsler.png"
                     alt="Wechsler Logo"
                     className="h-24 w-auto object-contain sm:h-28"
                   />

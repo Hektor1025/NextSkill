@@ -1,9 +1,28 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import SessionTimeoutManager from "../../../../components/security/SessionTimeoutManager";
 import { supabase } from "../../../../lib/supabase";
+import {
+  getOrderStatusMeta,
+  getToneClasses,
+  type OrderWorkflow,
+} from "../../../../lib/order-workflow";
+
+type ToastState = {
+  type: "success" | "error" | "info";
+  message: string;
+} | null;
+
+type DocumentItem = {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string | null;
+  createdAt: string;
+};
 
 type Participant = {
   id: string;
@@ -38,6 +57,8 @@ type OrderDetails = {
     questions?: Question[];
   } | null;
   participants: Participant[];
+  documents: DocumentItem[];
+  workflow: OrderWorkflow;
 };
 
 export default function ClientOrderDetailsPage() {
@@ -47,127 +68,257 @@ export default function ClientOrderDetailsPage() {
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [isAddingParticipant, setIsAddingParticipant] = useState(false);
 
-  const [activeScanParticipantId, setActiveScanParticipantId] = useState<string | null>(null);
-  const participantScanInputRef = useRef<HTMLInputElement>(null);
+  const [toast, setToast] = useState<ToastState>(null);
+  const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(
+    null
+  );
+
+  const [activeScanParticipantId, setActiveScanParticipantId] = useState<
+    string | null
+  >(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [birthPlace, setBirthPlace] = useState("");
-  const [isAddingParticipant, setIsAddingParticipant] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const participantScanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (orderId) fetchOrderDetails();
+    fetchOrderDetails();
   }, [orderId]);
+
+  const statusMeta = useMemo(
+    () => (order ? getOrderStatusMeta(order.status) : null),
+    [order]
+  );
+
+  const showToast = (type: "success" | "error" | "info", message: string) => {
+    setToast({ type, message });
+    window.setTimeout(() => {
+      setToast((current) => (current?.message === message ? null : current));
+    }, 3200);
+  };
 
   const fetchOrderDetails = async () => {
     try {
       const res = await fetch(`/api/client-orders/${orderId}`);
-      if (res.ok) setOrder(await res.json());
+      const data = await res.json();
+
+      if (res.ok) {
+        setOrder(data);
+      } else {
+        showToast("error", data?.error || "Nie udało się pobrać szczegółów.");
+      }
     } catch (error) {
       console.error(error);
+      showToast("error", "Wystąpił błąd pobierania szczegółów zlecenia.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddParticipant = async (e: React.FormEvent) => {
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("pl-PL", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const formatShortDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("pl-PL", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  };
+
+  const getToastClasses = () => {
+    if (!toast) return "";
+    if (toast.type === "success") {
+      return "border-emerald-300/15 bg-emerald-400/10 text-emerald-100";
+    }
+    if (toast.type === "error") {
+      return "border-rose-300/15 bg-rose-400/10 text-rose-100";
+    }
+    return "border-cyan-300/15 bg-cyan-400/10 text-cyan-100";
+  };
+
+  const getProgressBarClass = (progress: number) => {
+    if (progress >= 100) {
+      return "bg-gradient-to-r from-emerald-300 via-cyan-300 to-emerald-300";
+    }
+    if (progress >= 60) {
+      return "bg-gradient-to-r from-blue-300 via-cyan-300 to-violet-300";
+    }
+    if (progress >= 30) {
+      return "bg-gradient-to-r from-yellow-300 via-blue-300 to-cyan-300";
+    }
+    return "bg-gradient-to-r from-yellow-300 via-orange-300 to-rose-300";
+  };
+
+  const resetParticipantForm = () => {
+    setFirstName("");
+    setLastName("");
+    setBirthDate("");
+    setBirthPlace("");
+  };
+
+  const handleAddParticipant = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (!order) return;
+
+    if (!firstName || !lastName || !birthDate) {
+      showToast("error", "Uzupełnij imię, nazwisko i datę urodzenia.");
+      return;
+    }
+
     setIsAddingParticipant(true);
+
     try {
       const res = await fetch("/api/participants", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, firstName, lastName, birthDate, birthPlace }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          firstName,
+          lastName,
+          birthDate,
+          birthPlace,
+        }),
       });
 
-      if (res.ok) {
-        setFirstName("");
-        setLastName("");
-        setBirthDate("");
-        setBirthPlace("");
-        fetchOrderDetails();
-      } else {
-        alert("Błąd podczas dodawania.");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Nie udało się dodać uczestnika.");
       }
+
+      resetParticipantForm();
+      showToast("success", "Uczestnik został dodany.");
+      await fetchOrderDetails();
     } catch (error) {
       console.error(error);
+      showToast("error", "Wystąpił błąd podczas dodawania uczestnika.");
     } finally {
       setIsAddingParticipant(false);
     }
   };
 
-  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !order) return;
 
     setIsAddingParticipant(true);
-    const reader = new FileReader();
 
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        const lines = text.split("\n").filter((line) => line.trim() !== "");
-        const newParticipants = [];
-
-        for (let i = 1; i < lines.length; i++) {
-          const [fName, lName, bDate, bPlace] = lines[i]
-            .split(";")
-            .map((s) => s.trim().replace(/"/g, ""));
-
-          if (fName && lName && bDate) {
-            newParticipants.push({
-              orderId,
-              firstName: fName,
-              lastName: lName,
-              birthDate: bDate,
-              birthPlace: bPlace || "-",
-            });
-          }
-        }
-
-        if (newParticipants.length > 0) {
-          const res = await fetch("/api/participants", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ participants: newParticipants }),
-          });
-
-          if (res.ok) {
-            alert(`Sukces! Zaimportowano ${newParticipants.length} kursantów z pliku.`);
-            fetchOrderDetails();
-          } else {
-            alert("Wystąpił błąd podczas zapisywania masowego importu w bazie.");
-          }
-        } else {
-          alert(
-            "Nie znaleziono poprawnych danych w pliku. Upewnij się, że rozdzieliłeś dane średnikiem (;) w formacie: Imię;Nazwisko;Data urodzenia;Miejsce"
-          );
-        }
-      } catch (e) {
-        alert("Błąd przetwarzania pliku CSV.");
-      } finally {
-        setIsAddingParticipant(false);
-        if (csvInputRef.current) csvInputRef.current.value = "";
-      }
-    };
-
-    reader.readAsText(file, "UTF-8");
-  };
-
-  const handleDeleteParticipant = async (participantId: string) => {
-    if (!confirm("Czy na pewno chcesz usunąć tę osobę?")) return;
     try {
-      const res = await fetch(`/api/participants/${participantId}`, {
-        method: "DELETE",
+      const text = await file.text();
+      const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const newParticipants: Array<{
+        orderId: string;
+        firstName: string;
+        lastName: string;
+        birthDate: string;
+        birthPlace: string;
+      }> = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const [fName, lName, bDate, bPlace] = lines[i]
+          .split(";")
+          .map((value) => value.trim().replace(/"/g, ""));
+
+        if (fName && lName && bDate) {
+          newParticipants.push({
+            orderId: order.id,
+            firstName: fName,
+            lastName: lName,
+            birthDate: bDate,
+            birthPlace: bPlace || "-",
+          });
+        }
+      }
+
+      if (newParticipants.length === 0) {
+        throw new Error(
+          "Nie znaleziono poprawnych danych. Format: Imię;Nazwisko;Data urodzenia;Miejsce."
+        );
+      }
+
+      const res = await fetch("/api/participants", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          participants: newParticipants,
+        }),
       });
-      if (res.ok) fetchOrderDetails();
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Nie udało się zapisać importu.");
+      }
+
+      showToast(
+        "success",
+        `Zaimportowano ${newParticipants.length} uczestników z pliku CSV.`
+      );
+      await fetchOrderDetails();
     } catch (error) {
       console.error(error);
+      showToast(
+        "error",
+        error instanceof Error
+          ? error.message
+          : "Wystąpił błąd przetwarzania pliku CSV."
+      );
+    } finally {
+      setIsAddingParticipant(false);
+      if (csvInputRef.current) {
+        csvInputRef.current.value = "";
+      }
+    }
+  };
+
+  const confirmDeleteParticipant = (participant: Participant) => {
+    setParticipantToDelete(participant);
+  };
+
+  const handleDeleteParticipant = async () => {
+    if (!participantToDelete) return;
+
+    try {
+      const res = await fetch(`/api/participants/${participantToDelete.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Nie udało się usunąć uczestnika.");
+      }
+
+      showToast(
+        "success",
+        `Usunięto uczestnika: ${participantToDelete.firstName} ${participantToDelete.lastName}.`
+      );
+      setParticipantToDelete(null);
+      await fetchOrderDetails();
+    } catch (error) {
+      console.error(error);
+      showToast("error", "Wystąpił błąd podczas usuwania uczestnika.");
     }
   };
 
@@ -176,13 +327,19 @@ export default function ClientOrderDetailsPage() {
     participantScanInputRef.current?.click();
   };
 
-  const handleParticipantScanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleParticipantScanUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
-    if (!file || !activeScanParticipantId || !order?.examTemplate?.id) return;
+
+    if (!file || !activeScanParticipantId || !order?.examTemplate?.id) {
+      return;
+    }
 
     setIsUploading(true);
+
     try {
-      let blobsToUpload: Blob[] = [];
+      const blobsToUpload: Blob[] = [];
 
       if (file.type === "application/pdf") {
         const pdfjsLib = await import("pdfjs-dist");
@@ -195,33 +352,50 @@ export default function ClientOrderDetailsPage() {
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 2.0 });
+          const viewport = page.getViewport({ scale: 2 });
           const canvas = document.createElement("canvas");
           const ctx = canvas.getContext("2d");
 
-          if (ctx) {
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            await page.render({ canvasContext: ctx, viewport }).promise;
-            const blob = await new Promise<Blob | null>((res) =>
-              canvas.toBlob(res, "image/jpeg", 0.9)
-            );
-            if (blob) blobsToUpload.push(blob);
+          if (!ctx) continue;
+
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          await page.render({
+            canvasContext: ctx,
+            viewport,
+          }).promise;
+
+          const blob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob(resolve, "image/jpeg", 0.92)
+          );
+
+          if (blob) {
+            blobsToUpload.push(blob);
           }
         }
       } else {
         blobsToUpload.push(file);
       }
 
-      if (blobsToUpload.length === 0) throw new Error("Nie odczytano pliku");
+      if (blobsToUpload.length === 0) {
+        throw new Error("Nie udało się odczytać pliku do przesłania.");
+      }
 
       const uploadedUrls: string[] = [];
+
       for (let i = 0; i < blobsToUpload.length; i++) {
-        const safeFileName = `skan-${activeScanParticipantId}-${Date.now()}-strona${i + 1}.jpg`;
+        const safeFileName = `skan-${activeScanParticipantId}-${Date.now()}-${
+          i + 1
+        }.jpg`;
+
         const { error: uploadError } = await supabase.storage
           .from("scans")
           .upload(safeFileName, blobsToUpload[i]);
-        if (uploadError) throw uploadError;
+
+        if (uploadError) {
+          throw uploadError;
+        }
 
         const { data: publicUrlData } = supabase.storage
           .from("scans")
@@ -232,7 +406,9 @@ export default function ClientOrderDetailsPage() {
 
       const res = await fetch(`/api/grade-scan`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           participantId: activeScanParticipantId,
           fileUrls: uploadedUrls,
@@ -240,44 +416,60 @@ export default function ClientOrderDetailsPage() {
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.requiresManualGrading) alert(data.message);
-        else alert("Skan oceniony pomyślnie przez AI!");
-        fetchOrderDetails();
+      if (!res.ok) {
+        showToast(
+          "info",
+          "Skan został przesłany, ale nie udało się go ocenić automatycznie. Administrator może zweryfikować go ręcznie."
+        );
       } else {
-        alert("Błąd AI. Administrator oceni skan ręcznie.");
-        fetchOrderDetails();
+        const data = await res.json();
+        if (data?.requiresManualGrading) {
+          showToast("info", data.message || "Skan wymaga ręcznej weryfikacji.");
+        } else {
+          showToast("success", "Skan został oceniony pomyślnie.");
+        }
       }
+
+      await fetchOrderDetails();
     } catch (error) {
-      alert("Błąd przetwarzania pliku.");
+      console.error(error);
+      showToast("error", "Wystąpił błąd podczas przetwarzania skanu.");
     } finally {
       setIsUploading(false);
       setActiveScanParticipantId(null);
+      if (participantScanInputRef.current) {
+        participantScanInputRef.current.value = "";
+      }
     }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !order) return;
 
     setIsUploading(true);
+
     try {
       const fileExt = file.name.split(".").pop();
-      const safeFileName = `${orderId}-${Date.now()}.${fileExt}`;
+      const safeFileName = `${order.id}-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("scans")
         .upload(safeFileName, file);
-      if (uploadError) throw uploadError;
+
+      if (uploadError) {
+        throw uploadError;
+      }
 
       const { data: publicUrlData } = supabase.storage
         .from("scans")
         .getPublicUrl(safeFileName);
 
-      const res = await fetch(`/api/client-orders/${orderId}`, {
+      const res = await fetch(`/api/client-orders/${order.id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           fileName: file.name,
           fileUrl: publicUrlData.publicUrl,
@@ -285,584 +477,1035 @@ export default function ClientOrderDetailsPage() {
         }),
       });
 
-      if (res.ok) {
-        alert("Plik przesłany!");
-        fetchOrderDetails();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Nie udało się zapisać dokumentu.");
       }
+
+      showToast("success", "Dokument został przesłany do zlecenia.");
+      await fetchOrderDetails();
     } catch (error) {
-      alert("Błąd wgrywania.");
+      console.error(error);
+      showToast("error", "Wystąpił błąd podczas wgrywania dokumentu.");
     } finally {
       setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
-  const copyTestLink = (participantId: string) => {
-    const testLink = `${window.location.origin}/exam/${orderId}/${participantId}`;
-    navigator.clipboard.writeText(testLink);
-    alert("Skopiowano link do testu!");
-  };
-
-  const generateClientPDF = () => {
+  const generatePrintableSheets = () => {
     if (!order?.examTemplate?.questions || order.examTemplate.questions.length === 0) {
-      alert("Ten test nie ma pytań.");
+      showToast("error", "Brak pytań do wygenerowania arkusza.");
       return;
     }
 
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      alert("Zezwól na wyskakujące okienka.");
-      return;
-    }
+    const escapeHtml = (value: string) =>
+      value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 
-    const letters = ["A", "B", "C", "D"];
-    const htmlContent = `<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>Arkusz - ${order.examTemplate.title}</title><style>body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; line-height: 1.5; } .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; } .title { font-size: 24px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; } .student-info { display: flex; justify-content: space-between; margin-top: 30px; font-size: 16px; } .info-line { border-bottom: 1px dotted #000; width: 300px; display: inline-block; } .question-block { margin-bottom: 30px; page-break-inside: avoid; } .question-text { font-weight: bold; font-size: 16px; margin-bottom: 12px; } .options { list-style-type: none; padding-left: 0; margin: 0; } .option { margin-bottom: 8px; font-size: 15px; display: flex; } .option-letter { font-weight: bold; margin-right: 10px; } @media print { body { padding: 0; } }</style></head><body><div class="header"><div class="title">${order.examTemplate.title}</div><div style="font-size: 14px; color: #555;">Test weryfikujący wiedzę</div><div class="student-info"><div>Imię i nazwisko: <span class="info-line"></span></div><div>Data: <span class="info-line" style="width: 150px;"></span></div></div></div><div class="questions">${order.examTemplate.questions
+    const questionsHtml = order.examTemplate.questions
       .map(
-        (q, index) =>
-          `<div class="question-block"><div class="question-text">${index + 1}. ${q.content}</div><ul class="options">${q.options
-            .map(
-              (opt, optIndex) =>
-                `<li class="option"><span class="option-letter">${letters[optIndex]}.</span> <span>${opt}</span></li>`
-            )
-            .join("")}</ul></div>`
+        (question, index) => `
+          <section class="question">
+            <div class="question-header">
+              <span class="index">${index + 1}</span>
+              <h3>${escapeHtml(question.content)}</h3>
+            </div>
+
+            <ul>
+              ${question.options
+                .map(
+                  (option, optionIndex) => `
+                    <li>
+                      <span class="option-label">${String.fromCharCode(
+                        65 + optionIndex
+                      )}</span>
+                      <span>${escapeHtml(option)}</span>
+                    </li>
+                  `
+                )
+                .join("")}
+            </ul>
+          </section>
+        `
       )
-      .join("")}</div><script>window.onload = function() { window.print(); }</script></body></html>`;
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-  };
+      .join("");
 
-  const generateOfficialDocuments = () => {
-    if (!order || !order.participants || order.participants.length === 0) return;
+    const html = `
+      <!DOCTYPE html>
+      <html lang="pl">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Arkusz egzaminacyjny</title>
+          <style>
+            body {
+              margin: 0;
+              padding: 40px;
+              font-family: Arial, sans-serif;
+              color: #111827;
+              background: #ffffff;
+            }
 
-    const bgProtocolUrl =
-      "https://pkvirteukvstznybgjfd.supabase.co/storage/v1/object/public/scans/3.png";
-    const bgCertFrontUrl =
-      "https://pkvirteukvstznybgjfd.supabase.co/storage/v1/object/public/scans/1.png";
-    const bgCertBackUrl =
-      "https://pkvirteukvstznybgjfd.supabase.co/storage/v1/object/public/scans/2.png";
+            .header {
+              margin-bottom: 28px;
+              padding-bottom: 18px;
+              border-bottom: 2px solid #e5e7eb;
+            }
 
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      alert("Zezwól na wyskakujące okienka.");
+            .eyebrow {
+              font-size: 12px;
+              letter-spacing: 0.25em;
+              text-transform: uppercase;
+              color: #64748b;
+              margin-bottom: 12px;
+            }
+
+            h1 {
+              margin: 0 0 8px 0;
+              font-size: 28px;
+              line-height: 1.2;
+            }
+
+            .meta {
+              color: #475569;
+              font-size: 14px;
+              line-height: 1.8;
+            }
+
+            .question {
+              page-break-inside: avoid;
+              margin: 0 0 24px 0;
+              padding: 20px;
+              border: 1px solid #e5e7eb;
+              border-radius: 16px;
+              background: #f8fafc;
+            }
+
+            .question-header {
+              display: flex;
+              gap: 14px;
+              align-items: flex-start;
+              margin-bottom: 14px;
+            }
+
+            .index {
+              display: inline-flex;
+              width: 30px;
+              height: 30px;
+              align-items: center;
+              justify-content: center;
+              border-radius: 999px;
+              background: #dbeafe;
+              color: #1d4ed8;
+              font-weight: 700;
+              font-size: 14px;
+              flex-shrink: 0;
+            }
+
+            h3 {
+              margin: 2px 0 0 0;
+              font-size: 17px;
+              line-height: 1.5;
+            }
+
+            ul {
+              list-style: none;
+              padding: 0;
+              margin: 0;
+            }
+
+            li {
+              display: flex;
+              gap: 12px;
+              align-items: flex-start;
+              padding: 10px 0;
+              border-top: 1px dashed #d1d5db;
+            }
+
+            li:first-child {
+              border-top: none;
+            }
+
+            .option-label {
+              display: inline-flex;
+              width: 26px;
+              height: 26px;
+              align-items: center;
+              justify-content: center;
+              border-radius: 999px;
+              border: 1px solid #cbd5e1;
+              font-weight: 700;
+              font-size: 13px;
+              flex-shrink: 0;
+            }
+
+            @media print {
+              body {
+                padding: 18px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <header class="header">
+            <div class="eyebrow">Arkusz egzaminacyjny</div>
+            <h1>${escapeHtml(order.examTemplate.title)}</h1>
+            <div class="meta">
+              <div>ID zlecenia: ${escapeHtml(order.id.split("-")[0])}</div>
+              <div>Data wygenerowania: ${escapeHtml(
+                new Date().toLocaleDateString("pl-PL")
+              )}</div>
+            </div>
+          </header>
+
+          ${questionsHtml}
+        </body>
+      </html>
+    `;
+
+    const popup = window.open("", "_blank", "noopener,noreferrer");
+
+    if (!popup) {
+      showToast("error", "Przeglądarka zablokowała okno wydruku.");
       return;
     }
 
-    const dzisiaj = new Date().toLocaleDateString("pl-PL");
-    const shortId = order.id.split("-")[0].toUpperCase();
-    const courseName = order.examTemplate?.title || "Szkolenie Zawodowe";
-    const ocenieni = order.participants.filter(
-      (p) => p.testFinished && p.maxScore && p.maxScore > 0
-    );
-    const zdani = ocenieni.filter(
-      (p) => p.score && p.maxScore && p.score / p.maxScore >= 0.51
-    );
-    const sourceText =
-      order.examTemplate?.learningOutcomes || order.examTemplate?.description || "";
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+    popup.focus();
 
-    const efektyUczenia = sourceText
-      ? sourceText
-          .split("\n")
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0)
-          .map(
-            (line, index) =>
-              `<div style="margin-bottom: 6px; text-align: justify;">${index + 1}. ${line}</div>`
-          )
-          .join("")
-      : "<div>Brak wprowadzonych efektów.</div>";
-
-    let htmlContent = `<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>Dokumenty - #${shortId}</title><style>body { font-family: 'Times New Roman', Times, serif; background: #525659; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000; } .page { width: 210mm; height: 297mm; background: white; margin: 20px auto; position: relative; box-shadow: 0 0 10px rgba(0,0,0,0.5); page-break-after: always; overflow: hidden; } .page:last-child { page-break-after: auto; } .bg-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; object-fit: cover; } .text-layer { position: absolute; z-index: 2; color: #000; } @media print { body { background: white; margin: 0; padding: 0; } .page { margin: 0; box-shadow: none; border: none; } } .proto-numer { top: 60mm; left: 105mm; transform: translateX(-50%); font-size: 16px; font-weight: bold; width: 170mm; text-align: center; } .proto-cel { top: 67mm; left: 105mm; transform: translateX(-50%); font-size: 16px; text-align: center; width: 170mm; line-height: 1.4; } .proto-opis-dnia { top: 82mm; left: 25mm; font-size: 16px; width: 160mm; line-height: 1.4; text-align: left; } .proto-kurs { top: 94mm; left: 105mm; transform: translateX(-50%); font-size: 16px; font-weight: bold; width: 170mm; text-align: center; } .proto-tytul-listy { top: 106mm; left: 105mm; transform: translateX(-50%); font-size: 16px; font-weight: bold; width: 170mm; text-align: center; } .proto-lista { top: 116mm; left: 25mm; width: 160mm; font-size: 16px; line-height: 1.6; } .cert-dla { top: 88mm; left: 105mm; transform: translateX(-50%); font-size: 16px; } .cert-imie-nazwisko { top: 98mm; left: 105mm; transform: translateX(-50%); font-size: 26px; font-weight: bold; width: 190mm; text-align: center; } .cert-urodzony { top: 110mm; left: 105mm; transform: translateX(-50%); font-size: 16px; width: 190mm; text-align: center; } .cert-po-odbyciu { top: 130mm; left: 105mm; transform: translateX(-50%); font-size: 16px; } .cert-kurs { top: 142mm; left: 105mm; transform: translateX(-50%); font-size: 22px; font-weight: bold; width: 180mm; text-align: center; } .cert-wynik-tekst { top: 166mm; left: 105mm; transform: translateX(-50%); font-size: 16px; } .cert-wynik-box { top: 174mm; left: 105mm; transform: translateX(-50%); font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 8px; } .cert-kielce-dnia { top: 215mm; left: 25mm; font-size: 16px; } .cert-numer-cvziu { top: 240mm; left: 115mm; font-size: 16px; font-weight: bold; } .cert-efekty-lista { top: 60mm; left: 25mm; width: 160mm; font-size: 15px; line-height: 1.5; } .cert-stopka-rewers { bottom: 15mm; left: 25mm; width: 160mm; font-size: 12px; text-align: left; }</style></head><body>`;
-
-    htmlContent += `<div class="page"><img src="${bgProtocolUrl}" class="bg-image" /><div class="text-layer proto-numer">Protokół nr CVZIU${shortId}</div><div class="text-layer proto-cel">z przeprowadzenia walidacji (egzaminu) efektów uczenia się<br/>w celu potwierdzenia nabycia kwalifikacji</div><div class="text-layer proto-opis-dnia">Dnia ${dzisiaj} przeprowadzono walidację (egzamin) sprawdzającą przyswojenie przez<br/>uczestników szkolenia wiedzy z zakresu:</div><div class="text-layer proto-kurs">${courseName}</div><div class="text-layer proto-tytul-listy">Lista obecności oraz wyniki osób egzaminowanych</div><div class="text-layer proto-lista">${
-      ocenieni.length > 0
-        ? ocenieni
-            .map((p, i) => {
-              const proc =
-                p.score && p.maxScore ? Math.round((p.score / p.maxScore) * 100) : 0;
-              const wynik = proc >= 51 ? "pozytywna" : "negatywna";
-              return `<div style="margin-bottom: 6px;">${i + 1}. ${p.lastName} ${p.firstName} urodzony(a) ${p.birthDate} walidacja ${wynik}</div>`;
-            })
-            .join("")
-        : "<div>Brak.</div>"
-    }</div></div>`;
-
-    zdani.forEach((p) => {
-      const certId = `CVZIU${shortId}${p.id.substring(0, 4).toUpperCase()}`;
-      htmlContent += `<div class="page"><img src="${bgCertFrontUrl}" class="bg-image" /><div class="text-layer cert-dla">dla</div><div class="text-layer cert-imie-nazwisko">Pan(i) ${p.firstName} ${p.lastName}</div><div class="text-layer cert-urodzony">urodzony(a) w dn. ${p.birthDate} w ${p.birthPlace || "-"}</div><div class="text-layer cert-po-odbyciu">po odbyciu kursu pt.:</div><div class="text-layer cert-kurs">"${courseName}"</div><div class="text-layer cert-wynik-tekst">w wyniku przeprowadzonej walidacji zdał(a) egzamin</div><div class="text-layer cert-wynik-box"><span style="font-family: Arial;">☑</span> wynikiem pozytywnym</div><div class="text-layer cert-kielce-dnia">Kielce, dnia ${dzisiaj}</div><div class="text-layer cert-numer-cvziu">Nr: ${certId}</div></div><div class="page"><img src="${bgCertBackUrl}" class="bg-image" /><div class="text-layer cert-efekty-lista">${efektyUczenia}</div><div class="text-layer cert-stopka-rewers">Załącznik do certyfikatu nr: ${certId} | Uczestnik: ${p.firstName} ${p.lastName}</div></div>`;
-    });
-
-    htmlContent += `<script>window.onload = function() { setTimeout(() => { window.print(); }, 800); }</script></body></html>`;
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    setTimeout(() => {
+      popup.print();
+    }, 400);
   };
 
-  const exportToCSV = () => {
-    if (!order || order.participants.length === 0) return;
+  const copyOrderExamLink = async (participantId: string) => {
+    try {
+      const url = `${window.location.origin}/exam/${orderId}?participantId=${participantId}`;
+      await navigator.clipboard.writeText(url);
+      showToast("success", "Link do egzaminu został skopiowany.");
+    } catch (error) {
+      console.error(error);
+      showToast("error", "Nie udało się skopiować linku.");
+    }
+  };
 
-    const headers = [
-      "Imię",
-      "Nazwisko",
-      "Data Urodzenia",
-      "Miejsce Urodzenia",
-      "Zdobyte Punkty",
-      "Maks. Punkty",
-      "Procent",
-      "Wynik Walidacji",
+  const timelineEvents = useMemo(() => {
+    if (!order) return [];
+
+    const events: Array<{
+      id: string;
+      title: string;
+      description: string;
+      isDone: boolean;
+      date?: string;
+    }> = [
+      {
+        id: "created",
+        title: "Złożono zamówienie",
+        description: "Zlecenie zostało utworzone w systemie.",
+        isDone: true,
+        date: order.createdAt,
+      },
+      {
+        id: "invoice",
+        title: "Faktura",
+        description: order.invoiceUrl
+          ? "Faktura jest dostępna do pobrania."
+          : "Faktura nie została jeszcze udostępniona.",
+        isDone: !!order.invoiceUrl,
+      },
+      {
+        id: "participants",
+        title: "Lista uczestników",
+        description:
+          order.workflow.stats.participantCount > 0
+            ? `Dodano ${order.workflow.stats.participantCount} uczestników.`
+            : "Lista uczestników nie została jeszcze uzupełniona.",
+        isDone: order.workflow.stats.participantCount > 0,
+      },
+      {
+        id: "tests",
+        title: "Arkusze i materiały",
+        description: order.workflow.stats.testsReady
+          ? "Materiały egzaminacyjne są gotowe."
+          : "Materiały nie zostały jeszcze przygotowane.",
+        isDone: order.workflow.stats.testsReady,
+      },
+      {
+        id: "scans",
+        title: "Skany / dokumenty",
+        description: order.workflow.stats.scansUploaded
+          ? "Do zlecenia zostały dostarczone skany lub dokumenty."
+          : "System oczekuje na skany lub dokumenty do weryfikacji.",
+        isDone: order.workflow.stats.scansUploaded,
+      },
+      {
+        id: "verification",
+        title: "Weryfikacja wyników",
+        description:
+          order.workflow.stats.gradedParticipantsCount > 0
+            ? `Oceniono ${order.workflow.stats.gradedParticipantsCount} uczestników.`
+            : "Weryfikacja nie została jeszcze zakończona.",
+        isDone:
+          order.workflow.stats.participantCount > 0 &&
+          order.workflow.stats.gradedParticipantsCount ===
+            order.workflow.stats.participantCount,
+      },
+      {
+        id: "certificates",
+        title: "Certyfikaty",
+        description:
+          order.workflow.stats.certificatesReadyCount > 0
+            ? `Udostępniono ${order.workflow.stats.certificatesReadyCount} certyfikatów.`
+            : "Certyfikaty nie zostały jeszcze opublikowane.",
+        isDone:
+          order.workflow.stats.participantCount > 0 &&
+          order.workflow.stats.certificatesReadyCount ===
+            order.workflow.stats.participantCount,
+      },
     ];
 
-    const rows = order.participants.map((p) => {
-      const proc =
-        p.score && p.maxScore ? Math.round((p.score / p.maxScore) * 100) : 0;
-      return [
-        p.firstName,
-        p.lastName,
-        p.birthDate,
-        p.birthPlace || "-",
-        p.score ?? "-",
-        p.maxScore ?? "-",
-        p.testFinished ? `${proc}%` : "-",
-        p.testFinished ? (proc >= 51 ? "Pozytywny" : "Negatywny") : "-",
-      ];
-    });
-
-    const csvContent = [headers.join(";"), ...rows.map((e) => e.join(";"))].join(
-      "\n"
-    );
-    const blob = new Blob(["\uFEFF" + csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const link = document.createElement("a");
-    link.setAttribute("href", URL.createObjectURL(blob));
-    link.setAttribute("download", `Wyniki_${order.id.split("-")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const getStatusAlert = (status: string) => {
-    switch (status) {
-      case "NEW":
-        return (
-          <div className="rounded-[24px] border border-yellow-300/15 bg-yellow-400/10 p-5">
-            <h3 className="text-lg font-semibold text-yellow-100">
-              Etap 1: Nowe zlecenie
-            </h3>
-            <p className="mt-2 text-sm text-yellow-100/80">
-              Zlecenie zostało przesłane i oczekuje na potwierdzenie.
-            </p>
-          </div>
-        );
-      case "CONFIRMED":
-        return (
-          <div className="rounded-[24px] border border-blue-300/15 bg-blue-400/10 p-5">
-            <h3 className="text-lg font-semibold text-blue-100">
-              Etap 2: Potwierdzenie zlecenia
-            </h3>
-            <p className="mt-2 text-sm text-blue-100/80">
-              Wprowadź uczestników poniżej lub skorzystaj z importu CSV.
-            </p>
-          </div>
-        );
-      case "TEST_READY":
-        return (
-          <div className="rounded-[24px] border border-indigo-300/15 bg-indigo-400/10 p-5">
-            <h3 className="text-lg font-semibold text-indigo-100">
-              Etap 3: Przeprowadzenie egzaminu
-            </h3>
-            <p className="mt-2 text-sm text-indigo-100/80">
-              Wgraj skany egzaminów przy nazwiskach uczestników lub skopiuj linki do testu online.
-            </p>
-          </div>
-        );
-      case "SCANS_UPLOADED":
-        return (
-          <div className="rounded-[24px] border border-purple-300/15 bg-purple-400/10 p-5">
-            <h3 className="text-lg font-semibold text-purple-100">
-              Etap: Oczekuje na akceptację
-            </h3>
-            <p className="mt-2 text-sm text-purple-100/80">
-              Przesłane materiały są aktualnie weryfikowane.
-            </p>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
+    return events;
+  }, [order]);
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="rounded-[28px] border border-white/10 bg-white/[0.04] px-10 py-8 text-center backdrop-blur-2xl shadow-[0_40px_120px_rgba(0,0,0,0.35)]">
-          <p className="text-lg font-semibold text-white">
-            Wczytywanie szczegółów...
-          </p>
-          <p className="mt-2 text-sm text-slate-400">
-            Trwa pobieranie danych zlecenia
-          </p>
+      <div className="space-y-8">
+        <div className="rounded-[36px] border border-white/10 bg-white/[0.04] p-8 backdrop-blur-2xl">
+          <div className="h-8 w-60 animate-pulse rounded-full bg-white/10" />
+          <div className="mt-4 h-5 w-96 max-w-full animate-pulse rounded-full bg-white/10" />
+          <div className="mt-8 h-3 w-full animate-pulse rounded-full bg-white/10" />
         </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+          <div className="h-[320px] animate-pulse rounded-[32px] border border-white/10 bg-white/[0.04]" />
+          <div className="h-[320px] animate-pulse rounded-[32px] border border-white/10 bg-white/[0.04]" />
+        </div>
+
+        <div className="h-[420px] animate-pulse rounded-[32px] border border-white/10 bg-white/[0.04]" />
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 px-10 py-8 text-center backdrop-blur-2xl">
-          <p className="text-lg font-semibold text-red-100">
-            Nie znaleziono zlecenia
-          </p>
+      <div className="rounded-[36px] border border-rose-300/15 bg-rose-400/10 px-6 py-16 text-center backdrop-blur-2xl">
+        <h2 className="text-2xl font-semibold text-white">
+          Nie znaleziono zlecenia
+        </h2>
+        <p className="mt-3 text-sm leading-7 text-rose-100/85">
+          To zlecenie nie istnieje lub nie zostało jeszcze poprawnie zapisane.
+        </p>
+        <div className="mt-8">
+          <Link
+            href="/panel/history"
+            className="inline-flex items-center rounded-[20px] border border-white/10 bg-white/[0.08] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.12]"
+          >
+            Wróć do historii
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl pb-12">
-      <input
-        type="file"
-        ref={participantScanInputRef}
-        onChange={handleParticipantScanUpload}
-        className="hidden"
-        accept=".pdf, image/jpeg, image/png, image/webp"
-      />
-      <input
-        type="file"
-        ref={csvInputRef}
-        onChange={handleCsvImport}
-        className="hidden"
-        accept=".csv"
-      />
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileUpload}
-        className="hidden"
-        accept=".pdf,.jpg,.png,.jpeg,.webp"
-      />
-
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Link
-          href="/panel/history"
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-cyan-200"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+    <>
+      <SessionTimeoutManager timeoutMinutes={30} warningSeconds={60} />
+      {toast && (
+        <div className="fixed right-5 top-5 z-[80] max-w-sm">
+          <div
+            className={`rounded-[22px] border px-5 py-4 backdrop-blur-2xl shadow-[0_24px_80px_rgba(0,0,0,0.35)] ${getToastClasses()}`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.8"
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          Wróć do listy
-        </Link>
-
-        <div className="flex flex-wrap gap-3">
-          {order.invoiceUrl &&
-            (order.status === "CONFIRMED" ||
-              order.status === "TEST_READY" ||
-              order.status === "COMPLETED") && (
-              <a
-                href={order.invoiceUrl}
-                target="_blank"
-                className="inline-flex items-center rounded-2xl border border-emerald-300/15 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15"
-              >
-                <svg
-                  className="mr-2 h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.8"
-                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                Pobierz fakturę
-              </a>
-            )}
-        </div>
-      </div>
-
-      <div className="mb-8 overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.05] backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
-        <div className="border-b border-white/10 bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/70 p-8">
-          <p className="text-[11px] uppercase tracking-[0.30em] text-cyan-200/65">
-            Order details
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold text-white">
-            {order.examTemplate?.title || "Brak nazwy"}
-          </h1>
-          <div className="mt-4 inline-flex rounded-xl border border-white/10 bg-white/[0.05] px-3 py-1.5 font-mono text-xs font-bold text-slate-300">
-            #{order.id.split("-")[0]}
+            <p className="text-sm font-semibold leading-6">{toast.message}</p>
           </div>
         </div>
+      )}
 
-        {order.status === "COMPLETED" ? (
-          <div className="p-8 pb-4">
-            <div className="rounded-[28px] border border-emerald-300/15 bg-emerald-400/10 p-8 text-center">
-              <h2 className="text-3xl font-semibold text-emerald-100">
-                Wszystko gotowe 🎉
-              </h2>
-              <p className="mt-4 text-base text-emerald-100/85">
-                Walidacja została zakończona. Możesz pobrać gotowe certyfikaty oraz raport wyników.
-              </p>
+      {participantToDelete && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 px-5 backdrop-blur-md">
+          <div className="w-full max-w-lg rounded-[28px] border border-white/10 bg-[#0b1220]/95 p-7 shadow-[0_40px_120px_rgba(0,0,0,0.45)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.30em] text-rose-200/70">
+              Potwierdzenie akcji
+            </p>
+            <h3 className="mt-3 text-2xl font-semibold text-white">
+              Usunąć uczestnika?
+            </h3>
+            <p className="mt-4 text-sm leading-7 text-slate-300">
+              Za chwilę usuniesz z listy uczestnika{" "}
+              <span className="font-semibold text-white">
+                {participantToDelete.firstName} {participantToDelete.lastName}
+              </span>
+              . Ta operacja nie cofnie się automatycznie.
+            </p>
 
-              <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-                <button
-                  onClick={generateOfficialDocuments}
-                  className="inline-flex items-center justify-center rounded-[20px] border border-emerald-300/15 bg-emerald-500/20 px-8 py-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/25"
-                >
-                  Pobierz certyfikaty
-                </button>
-
-                <button
-                  onClick={exportToCSV}
-                  className="inline-flex items-center justify-center rounded-[20px] border border-white/10 bg-white/[0.05] px-8 py-4 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
-                >
-                  Eksport CSV
-                </button>
-              </div>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setParticipantToDelete(null)}
+                className="inline-flex items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteParticipant}
+                className="inline-flex items-center justify-center rounded-[18px] border border-rose-300/15 bg-rose-400/10 px-5 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/15"
+              >
+                Usuń uczestnika
+              </button>
             </div>
           </div>
-        ) : (
-          <div className="p-8 pb-4">
-            {getStatusAlert(order.status)}
+        </div>
+      )}
 
-            {order.status === "TEST_READY" && (
-              <div className="mt-6 rounded-[28px] border border-indigo-300/15 bg-indigo-400/10 p-6 text-center">
-                <h3 className="text-xl font-semibold text-indigo-100">
-                  Tradycyjny egzamin
-                </h3>
-                <p className="mt-3 text-sm text-indigo-100/80">
-                  Wydrukuj arkusze dla uczestników lub przeprowadź egzamin online.
-                </p>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
 
-                {order.examTemplate?.questions?.length ? (
-                  <button
-                    onClick={generateClientPDF}
-                    className="mt-6 inline-flex items-center justify-center rounded-[18px] border border-indigo-300/15 bg-indigo-500/20 px-8 py-3 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-500/25"
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={handleCsvUpload}
+      />
+
+      <input
+        ref={participantScanInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg,.webp"
+        className="hidden"
+        onChange={handleParticipantScanUpload}
+      />
+
+      <div className="space-y-8">
+        <section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-white/[0.05] p-8 backdrop-blur-2xl shadow-[0_40px_120px_rgba(0,0,0,0.35)]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(142,243,255,0.12),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(128,170,255,0.10),transparent_24%)]" />
+          <div className="relative z-10">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link
+                    href="/panel/history"
+                    className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.08]"
                   >
-                    Generuj arkusz PDF
-                  </button>
-                ) : (
-                  <span className="mt-6 inline-block text-sm text-slate-400">
-                    Brak pytań w pakiecie egzaminacyjnym.
+                    ← Historia
+                  </Link>
+
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                      statusMeta ? getToneClasses(statusMeta.tone) : ""
+                    }`}
+                  >
+                    {statusMeta?.label}
                   </span>
+                </div>
+
+                <h1 className="mt-5 text-3xl font-semibold text-white sm:text-4xl">
+                  {order.examTemplate?.title || "Usunięty pakiet egzaminacyjny"}
+                </h1>
+
+                <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-400">
+                  <span>ID: {order.id.split("-")[0]}</span>
+                  <span>Utworzono: {formatDate(order.createdAt)}</span>
+                  <span>Uczestnicy: {order.workflow.stats.participantCount}</span>
+                  <span>Dokumenty: {order.workflow.stats.documentsCount}</span>
+                </div>
+
+                {order.examTemplate?.description && (
+                  <p className="mt-5 max-w-4xl text-sm leading-7 text-slate-300">
+                    {order.examTemplate.description}
+                  </p>
                 )}
               </div>
-            )}
-          </div>
-        )}
 
-        <div className="px-8 pb-8 mt-4">
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-                Participants
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-white">
-                Zgłoszeni uczestnicy
-              </h2>
+              <div className="grid min-w-[260px] grid-cols-2 gap-4 xl:max-w-[320px]">
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 text-center">
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                    Postęp
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold text-white">
+                    {order.workflow.progressPercent}%
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 text-center">
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                    Certyfikaty
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold text-emerald-200">
+                    {order.workflow.stats.certificatesReadyCount}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {order.status === "TEST_READY" && (
+            <div className="mt-8">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="font-medium text-slate-300">Pasek postępu</span>
+                <span className="font-semibold text-white">
+                  {order.workflow.progressPercent}%
+                </span>
+              </div>
+
+              <div className="h-3 rounded-full border border-white/8 bg-white/[0.05] p-[2px]">
+                <div
+                  className={`h-full rounded-full ${getProgressBarClass(
+                    order.workflow.progressPercent
+                  )}`}
+                  style={{ width: `${order.workflow.progressPercent}%` }}
+                />
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                {order.workflow.steps.map((step, index) => (
+                  <div
+                    key={step.key}
+                    className={`rounded-[20px] border px-4 py-4 ${
+                      step.isDone
+                        ? "border-emerald-300/15 bg-emerald-400/10"
+                        : step.isCurrent
+                        ? "border-cyan-300/15 bg-cyan-400/10"
+                        : "border-white/8 bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                          step.isDone
+                            ? "bg-emerald-300 text-slate-950"
+                            : step.isCurrent
+                            ? "bg-cyan-300 text-slate-950"
+                            : "bg-white/10 text-slate-300"
+                        }`}
+                      >
+                        {index + 1}
+                      </div>
+                      <p className="text-sm font-semibold text-white">
+                        {step.label}
+                      </p>
+                    </div>
+                    <p className="mt-3 text-xs leading-6 text-slate-400">
+                      {step.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-2xl shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.30em] text-cyan-200/65">
+              Co musisz zrobić teraz
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold text-white">
+              {order.workflow.nextActionTitle}
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-slate-300">
+              {order.workflow.nextActionDescription}
+            </p>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:opacity-60"
+                className="inline-flex items-center justify-center rounded-[18px] border border-blue-300/15 bg-blue-400/10 px-5 py-3 text-sm font-semibold text-blue-200 transition hover:bg-blue-400/15 disabled:opacity-60"
               >
-                {isUploading ? "Wgrywanie..." : "Dodaj plik do zlecenia"}
+                {isUploading ? "Trwa wysyłka..." : "Dodaj dokument / skan"}
               </button>
-            )}
+
+              <button
+                type="button"
+                onClick={() => csvInputRef.current?.click()}
+                disabled={isAddingParticipant}
+                className="inline-flex items-center justify-center rounded-[18px] border border-emerald-300/15 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15 disabled:opacity-60"
+              >
+                Import uczestników CSV
+              </button>
+
+              {order.workflow.stats.testsReady &&
+                order.examTemplate?.questions &&
+                order.examTemplate.questions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={generatePrintableSheets}
+                    className="inline-flex items-center justify-center rounded-[18px] border border-violet-300/15 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/15"
+                  >
+                    Pobierz arkusze
+                  </button>
+                )}
+            </div>
           </div>
 
-          {order.status === "CONFIRMED" && (
-            <div className="mb-6 rounded-[28px] border border-blue-300/10 bg-blue-400/5 p-6">
-              <form
-                onSubmit={handleAddParticipant}
-                className="mb-6 border-b border-white/10 pb-6"
-              >
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300/80">
-                      Imię
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className="h-[52px] w-full rounded-[16px] border border-white/10 bg-white/[0.05] px-4 text-white outline-none focus:border-cyan-300/40"
-                    />
-                  </div>
+          <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-2xl shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.30em] text-slate-500">
+              Checklista braków
+            </p>
 
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300/80">
-                      Nazwisko
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className="h-[52px] w-full rounded-[16px] border border-white/10 bg-white/[0.05] px-4 text-white outline-none focus:border-cyan-300/40"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300/80">
-                      Data ur.
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={birthDate}
-                      onChange={(e) => setBirthDate(e.target.value)}
-                      className="h-[52px] w-full rounded-[16px] border border-white/10 bg-white/[0.05] px-4 text-white outline-none focus:border-cyan-300/40"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300/80">
-                      Miejsce ur.
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={birthPlace}
-                      onChange={(e) => setBirthPlace(e.target.value)}
-                      className="h-[52px] w-full rounded-[16px] border border-white/10 bg-white/[0.05] px-4 text-white outline-none focus:border-cyan-300/40"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-5 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={isAddingParticipant}
-                    className="inline-flex items-center justify-center rounded-[18px] border border-cyan-300/15 bg-cyan-400/10 px-6 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15 disabled:opacity-60"
+            {order.workflow.missingItems.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {order.workflow.missingItems.map((item) => (
+                  <div
+                    key={item.key}
+                    className={`rounded-[18px] border px-4 py-4 ${
+                      item.isBlocking
+                        ? "border-rose-300/15 bg-rose-400/10"
+                        : "border-yellow-300/15 bg-yellow-400/10"
+                    }`}
                   >
-                    + Dodaj pojedynczo
-                  </button>
-                </div>
-              </form>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p
+                          className={`text-sm font-semibold ${
+                            item.isBlocking ? "text-rose-100" : "text-yellow-100"
+                          }`}
+                        >
+                          {item.label}
+                        </p>
+                        <p
+                          className={`mt-1 text-xs leading-6 ${
+                            item.isBlocking
+                              ? "text-rose-100/80"
+                              : "text-yellow-100/80"
+                          }`}
+                        >
+                          {item.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-[18px] border border-emerald-300/15 bg-emerald-400/10 px-4 py-4">
+                <p className="text-sm font-semibold text-emerald-100">
+                  Wszystkie kluczowe elementy są kompletne.
+                </p>
+                <p className="mt-1 text-xs leading-6 text-emerald-100/80">
+                  To zlecenie wygląda profesjonalnie i jest domknięte procesowo.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
 
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1fr]">
+          <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-2xl shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.30em] text-cyan-200/65">
+                  Dokumenty i materiały
+                </p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">
+                  Wszystko w jednym miejscu
+                </h2>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
+                <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                  Faktura
+                </p>
+                {order.invoiceUrl ? (
+                  <a
+                    href={order.invoiceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 inline-flex items-center rounded-[16px] border border-emerald-300/15 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15"
+                  >
+                    Pobierz fakturę
+                  </a>
+                ) : (
+                  <p className="mt-4 text-sm leading-7 text-slate-400">
+                    Faktura nie została jeszcze udostępniona.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
+                <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                  Materiały egzaminacyjne
+                </p>
+                {order.workflow.stats.testsReady ? (
+                  <div className="mt-4 flex flex-col gap-3">
+                    {order.generatedTestUrl && (
+                      <a
+                        href={order.generatedTestUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center rounded-[16px] border border-blue-300/15 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-400/15"
+                      >
+                        Otwórz przygotowany plik
+                      </a>
+                    )}
+
+                    {order.examTemplate?.questions &&
+                      order.examTemplate.questions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={generatePrintableSheets}
+                          className="inline-flex items-center rounded-[16px] border border-violet-300/15 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/15"
+                        >
+                          Wygeneruj arkusz do druku
+                        </button>
+                      )}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm leading-7 text-slate-400">
+                    Materiały nie są jeszcze gotowe.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-base font-semibold text-white">
-                    Masowy import z Excela (CSV)
-                  </h3>
-                  <p className="mt-2 text-xs leading-6 text-slate-400">
-                    Format:{" "}
-                    <code className="rounded bg-white/10 px-2 py-1 text-slate-300">
-                      Imię;Nazwisko;Data ur(YYYY-MM-DD);Miejsce ur
-                    </code>
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                    Dokumenty przesłane do zlecenia
+                  </p>
+                  <p className="mt-2 text-sm text-slate-400">
+                    Tutaj znajdziesz wszystkie pliki dodane przez Twój ośrodek.
                   </p>
                 </div>
 
                 <button
                   type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="inline-flex items-center justify-center rounded-[18px] border border-blue-300/15 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-400/15 disabled:opacity-60"
+                >
+                  Dodaj plik
+                </button>
+              </div>
+
+              {order.documents.length > 0 ? (
+                <div className="mt-5 space-y-3">
+                  {order.documents.map((document) => (
+                    <div
+                      key={document.id}
+                      className="flex flex-col gap-4 rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white">
+                          {document.fileName}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Dodano: {formatDate(document.createdAt)}
+                        </p>
+                      </div>
+
+                      <a
+                        href={document.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center rounded-[14px] border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+                      >
+                        Otwórz
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-5 rounded-[18px] border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-400">
+                  Nie dodano jeszcze żadnych dokumentów do tego zlecenia.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-2xl shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.30em] text-cyan-200/65">
+              Oś czasu zlecenia
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold text-white">
+              Status i historia procesu
+            </h2>
+
+            <div className="mt-7 space-y-4">
+              {timelineEvents.map((event, index) => (
+                <div key={event.id} className="relative pl-12">
+                  {index < timelineEvents.length - 1 && (
+                    <div className="absolute left-[15px] top-8 h-[calc(100%+10px)] w-px bg-white/10" />
+                  )}
+
+                  <div
+                    className={`absolute left-0 top-1 flex h-8 w-8 items-center justify-center rounded-full border ${
+                      event.isDone
+                        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+                        : "border-white/10 bg-white/[0.05] text-slate-400"
+                    }`}
+                  >
+                    {event.isDone ? "✓" : index + 1}
+                  </div>
+
+                  <div className="rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm font-semibold text-white">
+                        {event.title}
+                      </p>
+                      {event.date && (
+                        <span className="text-xs text-slate-500">
+                          {formatShortDate(event.date)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs leading-6 text-slate-400">
+                      {event.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[32px] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-2xl shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.30em] text-cyan-200/65">
+                Uczestnicy zlecenia
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold text-white">
+                Lista osób i status certyfikatów
+              </h2>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => csvInputRef.current?.click()}
+                disabled={isAddingParticipant}
+                className="inline-flex items-center justify-center rounded-[18px] border border-emerald-300/15 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15 disabled:opacity-60"
+              >
+                Import CSV
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-7 grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
+              <h3 className="text-base font-semibold text-white">
+                Dodaj uczestnika ręcznie
+              </h3>
+
+              <form onSubmit={handleAddParticipant} className="mt-5 space-y-4">
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                    Imię
+                  </label>
+                  <input
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Jan"
+                    className="h-12 w-full rounded-[16px] border border-white/10 bg-white/[0.05] px-4 text-white outline-none transition focus:border-cyan-300/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                    Nazwisko
+                  </label>
+                  <input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Kowalski"
+                    className="h-12 w-full rounded-[16px] border border-white/10 bg-white/[0.05] px-4 text-white outline-none transition focus:border-cyan-300/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                    Data urodzenia
+                  </label>
+                  <input
+                    type="date"
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    className="h-12 w-full rounded-[16px] border border-white/10 bg-white/[0.05] px-4 text-white outline-none transition focus:border-cyan-300/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                    Miejsce urodzenia
+                  </label>
+                  <input
+                    value={birthPlace}
+                    onChange={(e) => setBirthPlace(e.target.value)}
+                    placeholder="Kielce"
+                    className="h-12 w-full rounded-[16px] border border-white/10 bg-white/[0.05] px-4 text-white outline-none transition focus:border-cyan-300/30"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isAddingParticipant}
+                  className="inline-flex w-full items-center justify-center rounded-[18px] border border-cyan-300/15 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15 disabled:opacity-60"
+                >
+                  {isAddingParticipant ? "Zapisywanie..." : "+ Dodaj pojedynczo"}
+                </button>
+              </form>
+
+              <div className="mt-6 rounded-[18px] border border-white/8 bg-white/[0.03] p-4">
+                <h4 className="text-sm font-semibold text-white">
+                  Masowy import z Excela (CSV)
+                </h4>
+                <p className="mt-2 text-xs leading-6 text-slate-400">
+                  Format pliku:
+                </p>
+                <code className="mt-2 inline-block rounded bg-white/10 px-3 py-2 text-xs text-slate-300">
+                  Imię;Nazwisko;Data ur(YYYY-MM-DD);Miejsce ur
+                </code>
+
+                <button
+                  type="button"
                   onClick={() => csvInputRef.current?.click()}
                   disabled={isAddingParticipant}
-                  className="inline-flex items-center justify-center rounded-[18px] border border-emerald-300/15 bg-emerald-400/10 px-6 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15 disabled:opacity-60"
+                  className="mt-4 inline-flex items-center justify-center rounded-[16px] border border-emerald-300/15 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15 disabled:opacity-60"
                 >
-                  <svg
-                    className="mr-2 h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="1.8"
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
                   Wgraj plik CSV
                 </button>
               </div>
             </div>
-          )}
 
-          {order.participants?.length > 0 ? (
-            <div className="overflow-x-auto rounded-[24px] border border-white/8">
-              <table className="w-full min-w-[960px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-white/8 bg-white/[0.03] text-left text-slate-500">
-                    <th className="p-4 font-medium">Imię i nazwisko</th>
-                    <th className="p-4 text-center font-medium">Wynik</th>
-                    <th className="p-4 text-right font-medium">Akcje</th>
-                  </tr>
-                </thead>
+            <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
+              {order.participants.length > 0 ? (
+                <div className="overflow-x-auto rounded-[20px] border border-white/8">
+                  <table className="w-full min-w-[980px] border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-white/8 bg-white/[0.03] text-left text-slate-500">
+                        <th className="p-4 font-medium">Uczestnik</th>
+                        <th className="p-4 font-medium">Wynik</th>
+                        <th className="p-4 font-medium">Certyfikat</th>
+                        <th className="p-4 font-medium text-right">Akcje</th>
+                      </tr>
+                    </thead>
 
-                <tbody className="divide-y divide-white/8">
-                  {order.participants.map((p) => (
-                    <tr key={p.id} className="transition hover:bg-white/[0.03]">
-                      <td className="p-4">
-                        <p className="font-semibold text-white">
-                          {p.firstName} {p.lastName}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {p.birthDate} • {p.birthPlace || "-"}
-                        </p>
-                      </td>
+                    <tbody className="divide-y divide-white/8">
+                      {order.participants.map((participant) => {
+                        const scoreText =
+                          participant.score !== null && participant.maxScore !== null
+                            ? `${participant.score} / ${participant.maxScore}`
+                            : "Oczekuje";
 
-                      <td className="p-4 text-center">
-                        {p.testFinished ? (
-                          <span className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-semibold text-slate-200">
-                            {p.score}/{p.maxScore}
-                          </span>
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </td>
-
-                      <td className="p-4 text-right">
-                        {order.status === "CONFIRMED" ? (
-                          <button
-                            onClick={() => handleDeleteParticipant(p.id)}
-                            className="inline-flex items-center justify-center rounded-xl border border-red-400/15 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/15"
+                        return (
+                          <tr
+                            key={participant.id}
+                            className="transition hover:bg-white/[0.03]"
                           >
-                            Usuń
-                          </button>
-                        ) : order.status === "TEST_READY" && !p.testFinished ? (
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => triggerParticipantScan(p.id)}
-                              className="inline-flex items-center justify-center rounded-xl border border-purple-300/15 bg-purple-400/10 px-3 py-2 text-xs font-semibold text-purple-200 transition hover:bg-purple-400/15"
-                            >
-                              Wgraj skan
-                            </button>
-                            <button
-                              onClick={() => copyTestLink(p.id)}
-                              className="inline-flex items-center justify-center rounded-xl border border-blue-300/15 bg-blue-400/10 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-400/15"
-                            >
-                              Link online
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-slate-500">Brak akcji</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            <td className="p-4 align-top">
+                              <p className="font-semibold text-white">
+                                {participant.firstName} {participant.lastName}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                ur. {formatShortDate(participant.birthDate)} •{" "}
+                                {participant.birthPlace || "brak miejsca"}
+                              </p>
+                            </td>
+
+                            <td className="p-4 align-top">
+                              <span
+                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                                  participant.score !== null &&
+                                  participant.maxScore !== null
+                                    ? "border-blue-300/15 bg-blue-400/10 text-blue-200"
+                                    : "border-white/10 bg-white/[0.05] text-slate-300"
+                                }`}
+                              >
+                                {scoreText}
+                              </span>
+                            </td>
+
+                            <td className="p-4 align-top">
+                              {participant.certificateUrl ? (
+                                <a
+                                  href={participant.certificateUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex rounded-full border border-emerald-300/15 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/15"
+                                >
+                                  Pobierz certyfikat
+                                </a>
+                              ) : (
+                                <span className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-semibold text-slate-300">
+                                  Brak certyfikatu
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="p-4 text-right align-top">
+                              <div className="flex flex-wrap justify-end gap-2">
+                                <a
+                                  href={`/exam/${order.id}?participantId=${participant.id}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center justify-center rounded-[14px] border border-blue-300/15 bg-blue-400/10 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-400/15"
+                                >
+                                  Otwórz egzamin
+                                </a>
+
+                                <button
+                                  type="button"
+                                  onClick={() => copyOrderExamLink(participant.id)}
+                                  className="inline-flex items-center justify-center rounded-[14px] border border-violet-300/15 bg-violet-400/10 px-3 py-2 text-xs font-semibold text-violet-200 transition hover:bg-violet-400/15"
+                                >
+                                  Kopiuj link
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => triggerParticipantScan(participant.id)}
+                                  disabled={isUploading}
+                                  className="inline-flex items-center justify-center rounded-[14px] border border-cyan-300/15 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/15 disabled:opacity-60"
+                                >
+                                  Wgraj skan
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => confirmDeleteParticipant(participant)}
+                                  className="inline-flex items-center justify-center rounded-[14px] border border-rose-300/15 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/15"
+                                >
+                                  Usuń
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="rounded-[20px] border border-dashed border-white/10 px-4 py-14 text-center">
+                  <p className="text-lg font-semibold text-white">
+                    Lista uczestników jest pusta
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-slate-400">
+                    Dodaj pierwszą osobę ręcznie albo wczytaj zbiorczy plik CSV.
+                  </p>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="rounded-[24px] border border-dashed border-white/15 bg-white/[0.03] py-10 text-center text-slate-400">
-              Brak osób na liście.
-            </div>
-          )}
-        </div>
+          </div>
+        </section>
       </div>
-    </div>
+    </>
   );
 }

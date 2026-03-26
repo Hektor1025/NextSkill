@@ -7,24 +7,35 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  password      String
-  role          Role     @default(CLIENT)
-  
-  // Nowe pola dla Ośrodka Szkoleniowego (Organizacji)
-  companyName   String?
-  nip           String?
-  address       String?
-  contactPerson String?
-  phone         String?
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  orders        Order[]
-  termsAccepted    Boolean   @default(false)
-  termsAcceptedAt  DateTime?
-  marketingConsent Boolean   @default(false)
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  password            String
+  role                Role                 @default(CLIENT)
+
+  companyName         String?
+  nip                 String?
+  address             String?
+  contactPerson       String?
+  phone               String?
+
+  termsAccepted       Boolean              @default(false)
+  termsAcceptedAt     DateTime?
+  marketingConsent    Boolean              @default(false)
+
+  failedLoginAttempts Int                  @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  passwordChangedAt   DateTime?
+
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  orders              Order[]
+  createdNotes        OrderNote[]          @relation("OrderNoteAuthor")
+  createdEvents       OrderEvent[]         @relation("OrderEventAuthor")
+  resetTokens         PasswordResetToken[]
+  securityLogs        SecurityLog[]        @relation("SecurityLogUser")
+  notifications       Notification[]
 }
 
 enum Role {
@@ -37,23 +48,21 @@ model ExamTemplate {
   title            String
   description      String
   isCustom         Boolean    @default(false)
-  
-  // Nowe pola: Efekty uczenia się (do certyfikatu) oraz poziom trudności
   learningOutcomes String?    @db.Text
   level            String?
-  
   createdAt        DateTime   @default(now())
+
   orders           Order[]
-  questions        Question[] 
+  questions        Question[]
 }
 
 model Question {
   id             String       @id @default(uuid())
   examTemplateId String
   examTemplate   ExamTemplate @relation(fields: [examTemplateId], references: [id], onDelete: Cascade)
-  content        String       
-  options        String[]     
-  correctAnswer  Int          
+  content        String
+  options        String[]
+  correctAnswer  Int
   createdAt      DateTime     @default(now())
 }
 
@@ -65,45 +74,162 @@ model Order {
   examTemplate       ExamTemplate? @relation(fields: [examTemplateId], references: [id])
   status             OrderStatus   @default(NEW)
   invoiceUrl         String?
-  trainingProgramUrl String?       
-  generatedTestUrl   String?       
-  scannedAnswersUrl  String?       
+  trainingProgramUrl String?
+  generatedTestUrl   String?
+  scannedAnswersUrl  String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+
   participants       Participant[]
   documents          Document[]
+  notes              OrderNote[]
+  events             OrderEvent[]
 }
 
 enum OrderStatus {
-  NEW                  
-  CONFIRMED            
-  TEST_READY           
-  SCANS_UPLOADED       
-  COMPLETED            
+  NEW
+  CONFIRMED
+  TEST_READY
+  SCANS_UPLOADED
+  COMPLETED
 }
 
 model Participant {
   id             String   @id @default(uuid())
   orderId        String
-  order          Order    @relation(fields: [orderId], references: [id])
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   firstName      String
   lastName       String
   birthDate      String
   birthPlace     String
   certificateUrl String?
-  score          Int?     
+  score          Int?
   maxScore       Int?
   testFinished   Boolean  @default(false)
-  scannedTestUrl String?  // <-- NOWOŚĆ: Miejsce na skan kartki konkretnego kursanta
+  scannedTestUrl String?
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
 }
 
 model Document {
   id        String   @id @default(uuid())
   orderId   String
-  order     Order    @relation(fields: [orderId], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   fileName  String
   fileUrl   String
   fileType  String
   createdAt DateTime @default(now())
+}
+
+model OrderNote {
+  id           String    @id @default(uuid())
+  orderId      String
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  authorUserId String?
+  authorUser   User?     @relation("OrderNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  authorEmail  String?
+  authorRole   Role?
+  content      String    @db.Text
+  isPinned     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([orderId, createdAt])
+}
+
+model OrderEvent {
+  id          String         @id @default(uuid())
+  orderId     String
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  actorUserId String?
+  actorUser   User?          @relation("OrderEventAuthor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  actorEmail  String?
+  actorRole   Role?
+  type        OrderEventType
+  title       String
+  description String         @db.Text
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([type, createdAt])
+}
+
+enum OrderEventType {
+  ORDER_CREATED
+  STATUS_CHANGED
+  INVOICE_UPDATED
+  TEST_UPDATED
+  DOCUMENT_UPLOADED
+  PARTICIPANT_ADDED
+  PARTICIPANT_REMOVED
+  NOTE_ADDED
+  ORDER_DELETED
+  SYSTEM_INFO
+}
+
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model SecurityLog {
+  id          String            @id @default(uuid())
+  userId      String?
+  user        User?             @relation("SecurityLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  email       String?
+  eventType   SecurityEventType
+  success     Boolean
+  ipAddress   String?
+  userAgent   String?
+  message     String
+  createdAt   DateTime          @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+  @@index([eventType, createdAt])
+}
+
+enum SecurityEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  ACCOUNT_LOCKED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  REGISTER_SUCCESS
+  REGISTER_FAILURE
+}
+
+model Notification {
+  id          String            @id @default(uuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         NotificationType
+  title        String
+  message      String            @db.Text
+  href         String?
+  isRead       Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  readAt       DateTime?
+
+  @@index([userId, isRead, createdAt])
+}
+
+enum NotificationType {
+  ORDER_STATUS
+  DOCUMENT_READY
+  CERTIFICATE_READY
+  REMINDER
+  SYSTEM
 }

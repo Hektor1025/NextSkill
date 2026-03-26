@@ -31,6 +31,27 @@ export default function RegisterPage() {
       e.target.type === "checkbox" ? e.target.checked : e.target.value;
     setFormData({ ...formData, [e.target.name]: value });
   };
+  const validatePasswordStrength = (password: string) => {
+  const errors: string[] = [];
+
+  if (password.length < 12) {
+    errors.push("Hasło musi mieć co najmniej 12 znaków.");
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push("Hasło musi zawierać małą literę.");
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push("Hasło musi zawierać wielką literę.");
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push("Hasło musi zawierać cyfrę.");
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    errors.push("Hasło musi zawierać znak specjalny.");
+  }
+
+  return errors;
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +61,11 @@ export default function RegisterPage() {
       setError("Hasła nie są identyczne.");
       return;
     }
+    const passwordErrors = validatePasswordStrength(formData.password);
+if (passwordErrors.length > 0) {
+  setError(passwordErrors.join(" "));
+  return;
+}
 
     if (!formData.termsAccepted) {
       setError(
@@ -468,7 +494,7 @@ export default function RegisterPage() {
               <div className="reveal-1 mb-8 flex items-center gap-4">
                 <div className="flex items-center justify-center">
                   <img
-                    src="/Wechsler.jpg"
+                    src="/Wechsler.png"
                     alt="Wechsler Logo"
                     className="h-24 w-auto object-contain sm:h-28"
                   />

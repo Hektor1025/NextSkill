@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import NotificationsCenter from "../../components/notifications/NotificationsCenter";
 
 export default function ClientPanelLayout({
   children,
@@ -118,9 +119,9 @@ export default function ClientPanelLayout({
             <div className="border-b border-white/10 px-7 py-7">
               <div className="flex items-center gap-4">
                 <img
-                  src="/Wechsler.jpg"
+                  src="/Wechsler.png"
                   alt="Wechsler Logo"
-                  className="h-14 w-auto object-contain"
+                  className="h-14 w-auto object-contain transform scale-[6.8] origin-left -translate-x-[150px]"
                 />
               </div>
 
@@ -261,6 +262,8 @@ export default function ClientPanelLayout({
                 </div>
 
                 <div className="flex items-center gap-4 self-start xl:self-auto">
+                  <NotificationsCenter panelBasePath="/panel" />
+
                   <div className="hidden text-right sm:block">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
                       Konto

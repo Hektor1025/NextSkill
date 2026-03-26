@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import NotificationsCenter from "../../components/notifications/NotificationsCenter";
 
 export default function DashboardLayout({
   children,
@@ -114,14 +115,13 @@ export default function DashboardLayout({
         <div className="pointer-events-none absolute bottom-[5%] left-[28%] h-[320px] w-[320px] rounded-full bg-violet-500/10 blur-[130px] drift-a" />
 
         <div className="relative z-10 flex min-h-screen">
-          {/* SIDEBAR */}
           <aside className="hidden xl:flex xl:w-[300px] xl:flex-col xl:border-r xl:border-white/10 xl:bg-white/[0.04] xl:backdrop-blur-2xl">
             <div className="border-b border-white/10 px-7 py-7">
               <div className="flex items-center gap-4">
                 <img
-                  src="/Wechsler.jpg"
+                  src="/Wechsler.png"
                   alt="Wechsler Logo"
-                  className="h-14 w-auto object-contain"
+                  className="h-14 w-auto object-contain transform scale-[7.8] origin-left -translate-x-[180px]"
                 />
               </div>
 
@@ -249,7 +249,6 @@ export default function DashboardLayout({
             </div>
           </aside>
 
-          {/* MAIN */}
           <main className="flex min-w-0 flex-1 flex-col">
             <header className="border-b border-white/10 bg-white/[0.03] backdrop-blur-2xl">
               <div className="flex h-auto min-h-[88px] flex-col justify-center gap-4 px-5 py-5 sm:px-8 xl:flex-row xl:items-center xl:justify-between">
@@ -263,6 +262,8 @@ export default function DashboardLayout({
                 </div>
 
                 <div className="flex items-center gap-4 self-start xl:self-auto">
+                  <NotificationsCenter panelBasePath="/dashboard" />
+
                   <div className="hidden text-right sm:block">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
                       Konto
@@ -279,9 +280,7 @@ export default function DashboardLayout({
               </div>
             </header>
 
-            <div className="flex-1 px-5 py-6 sm:px-8">
-              {children}
-            </div>
+            <div className="flex-1 px-5 py-6 sm:px-8">{children}</div>
 
             <footer className="border-t border-white/10 bg-white/[0.03] px-5 py-4 text-center text-xs text-slate-500 sm:px-8">
               <Link
